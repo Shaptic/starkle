@@ -2,7 +2,6 @@ import "./style.css";
 
 import $ from "jquery";
 import { Buffer as BufferPolyfill } from "buffer/";
-import { io } from "socket.io-client";
 
 import { authorizeEntry, Keypair, Networks, xdr } from "@stellar/stellar-sdk";
 import { Server } from "@stellar/stellar-sdk/rpc";
@@ -19,6 +18,7 @@ import { BustEvent, HoldEvent, RollEvent, WinEvent } from "./contracts/events";
 import { Eventing } from "./eventing";
 import { getAccountBalance, getGameBalance, sleep } from "./helpers";
 import { roll, yeeter } from "./game";
+import { socket } from "./socket";
 
 (globalThis as any).Buffer = (window as any).Buffer = BufferPolyfill;
 
@@ -104,14 +104,6 @@ switch (window.localStorage.getItem("walletMethod")) {
 
 $("#username").text(uname!);
 
-// Create a new WebSocket connection
-let socket = io("http://localhost:5000", {
-  reconnection: true,
-  reconnectionAttempts: 10,
-  reconnectionDelay: 250,
-  reconnectionDelayMax: 2000,
-});
-
 const eventer = new Eventing();
 const contract = await makeClient(user!);
 
@@ -155,17 +147,6 @@ async function main() {
   $("#holdReroll").on("click", () => onDiceTurnBtn(false));
   $("#holdPass").on("click", () => onDiceTurnBtn(true));
 
-  socket.on("connect", () => {
-    console.log("Connected to server...");
-    if ($("#wait-status").text().includes("server")) {
-      $("#waitingModal").hide();
-      $("#wait-status").text("");
-    }
-  });
-  socket.on("disconnect", () => {
-    $("#waitingModal").css("display", "flex");
-    $("#wait-status").text("Lost connection to server, attempting to reconnect...");
-  });
   socket.onAny((e, ...args) => console.debug(e, ...args));
 
   socket.on("auth_request", handleAuth);
