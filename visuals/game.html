@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Farkle Dice Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Your main TypeScript entry point -->
+    <script type="module" src="/src/main.ts"></script>
+    <style>
+      /* Reset and base styling */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+      }
+
+      /* Main container: three columns – left (stats), center (game area), right (chat) */
+      .container {
+        display: grid;
+        grid-template-columns: 30% 1fr 1fr;
+        height: 100vh;
+      }
+
+      /* Left sidebar: Stats panel with two inner panels (Account Status and Scoreboard) */
+      .stats {
+        border-right: 1px solid #ccc;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 1rem;
+        gap: 1rem;
+      }
+
+      /* Shared panel styling */
+      .panel {
+        width: 100%;
+        text-align: center;
+        border: 2px solid #ccc;
+        border-radius: 8px;
+        padding: 1rem;
+        background: #fff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Account Status panel styling */
+      .account-panel h3 {
+        margin-bottom: 0.5rem;
+        font-size: 1.2em;
+        color: #333;
+      }
+      .account-panel div {
+        margin: 0.3rem 0;
+        font-size: 1em;
+        color: #555;
+      }
+
+      /* Scoreboard styling */
+      .scoreboard {
+        text-align: center;
+      }
+      .scoreboard-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        align-items: center;
+        margin: 0.5rem 0;
+      }
+      .scoreboard-row.header {
+        font-weight: bold;
+        font-size: 1.2em;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 0.5rem;
+      }
+      .scoreboard-row.header .playerA {
+        color: #28a745; /* Green for current player */
+      }
+      .scoreboard-row.header .playerB {
+        color: #dc3545; /* Red for opponent */
+      }
+      .scoreboard-row .label {
+        font-style: italic;
+        color: #666;
+      }
+      /* Score numbers (totals and turns) revert to original colors */
+      .playerA.total,
+      .playerB.total {
+        font-size: 2em;
+        color: #007acc;
+      }
+      .playerA.turn,
+      .playerB.turn {
+        font-size: 1em;
+        color: #555;
+      }
+
+      /* Game area (center) */
+      .game-area {
+        position: relative;
+        background: url(/woodgrain2.jpg) repeat;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-width: 768px;
+      }
+
+      /* Chat panel (right column) */
+      .chat-panel {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-left: 1px solid #ccc;
+        display: flex;
+        flex-direction: column;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05);
+      }
+      .chat-panel h2 {
+        margin-bottom: 1rem;
+        font-size: 1.3em;
+        color: #333;
+      }
+      .chat-messages {
+        flex: 1;
+        border: 1px solid #ccc;
+        padding: 0.5rem;
+        background: #fff;
+        overflow-y: auto;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+      }
+      .chat-input {
+        padding: 0.5rem;
+        width: 100%;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 1em;
+      }
+
+      #accountStatusHeader {
+        position: relative; /* Establish a containing block for the absolutely positioned button */
+        text-align: center; /* Center the text */
+        padding: 0.5em 0;
+      }
+
+      #logout {
+        position: absolute; /* Take the button out of normal flow */
+        right: 0; /* Align to the right edge of the header */
+        top: 50%;
+        transform: translateY(-50%); /* Vertically center the button */
+        background: transparent;
+        border: none;
+        color: #007acc;
+        font-size: 0.6em;
+        cursor: pointer;
+        padding: 0.2em 0.5em;
+        transition: color 0.3s ease;
+      }
+
+      #logout:hover {
+        color: #005fa3;
+      }
+
+      .btn-tiny {
+        padding: 0;
+        margin: 0 0 0 0.3rem;
+        font-size: 1rem;
+      }
+      .btn-tiny:active {
+        transform: rotate(180deg);
+      }
+
+      /* Action Buttons (Deposit, Withdraw, Refresh, and Play) */
+      .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 1rem;
+      }
+      .action-button {
+        border: none;
+        color: #fff;
+        font-size: 1em;
+        padding: 0.75rem 1.5rem;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .btn-green {
+        background-color: #28a745;
+      }
+      .btn-green:hover {
+        background-color: #218838;
+      }
+      .btn-red {
+        background-color: #dc3545;
+      }
+      .btn-red:hover {
+        background-color: #c82333;
+      }
+      .btn-yellow {
+        background-color: #ffc107;
+        color: #333;
+      }
+      .btn-yellow:hover {
+        background-color: #e0a800;
+      }
+      /* Play button - reusing the refresh style for simplicity */
+      #play {
+        margin-top: 1rem;
+      }
+
+      /* "Waiting for opponent" Modal (full-screen overlay) */
+      .waiting-modal {
+        display: none; /* Hidden by default */
+        position: fixed;
+        z-index: 100;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        align-items: center;
+      }
+      .waiting-modal-content {
+        position: relative;
+        background-color: #fff;
+        padding: 2rem;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        max-width: 300px;
+        width: 90%;
+      }
+      .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #007acc;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* 1. Error Icon (Pretty X) */
+      .error-icon {
+        display: inline-block;
+        width: 50px; /* Adjust size as needed */
+        height: 50px;
+        position: relative;
+      }
+      .error-icon::before,
+      .error-icon::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 100%;
+        height: 4px; /* Thickness of the line */
+        background-color: #dc3545; /* Red color */
+        transform-origin: center;
+      }
+      .error-icon::before {
+        transform: translateY(-50%) rotate(45deg);
+      }
+      .error-icon::after {
+        transform: translateY(-50%) rotate(-45deg);
+      }
+
+      /* 2. Small Close Button inside .waiting-modal-content */
+      .waiting-modal-content .close-button {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 24px;
+        height: 24px;
+        background: transparent;
+        border: none;
+        font-size: 20px;
+        line-height: 1;
+        color: #555; /* Dark gray */
+        cursor: pointer;
+        padding: 0;
+      }
+
+      /* Optional hover state for the close button */
+      .waiting-modal-content .close-button:hover {
+        color: #333;
+      }
+
+      /* Dice Panel - Bottom Center Overlay */
+      .dice-panel {
+        position: absolute;
+        left: 50%;
+        bottom: 20px;
+        transform: translateX(-50%);
+        background: #fff;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        z-index: 50;
+        display: none; /* Hidden by default */
+        width: 90%;
+        max-width: 500px;
+      }
+      .dice-panel-content {
+        text-align: center;
+      }
+      .dice-panel h2 {
+        margin-bottom: 1rem;
+        font-size: 1.5em;
+        color: #333;
+      }
+      .dice-container {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      .die {
+        width: 50px;
+        height: 50px;
+        line-height: 50px;
+        border: 2px solid #007acc;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 1.5em;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.3s ease;
+      }
+      .die.active {
+        background-color: #007acc;
+        color: #fff;
+      }
+      .modal-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+      }
+
+      /* Mobile layout: stack vertically */
+      @media (max-width: 768px) {
+        .container {
+          display: flex;
+          flex-direction: column;
+          height: auto;
+        }
+        .stats,
+        .game-area,
+        .chat-panel {
+          border: none;
+          box-shadow: none;
+        }
+        .panel {
+          max-width: 220px;
+        }
+        .stats {
+          border-bottom: 1px solid #ccc;
+        }
+        .chat-panel {
+          border-top: 1px solid #ccc;
+        }
+        .game-area {
+          flex: 1;
+          min-height: 300px;
+        }
+      }
+
+      /* Popup base styling */
+      .popup {
+        position: fixed;
+        left: 50%;
+        bottom: -100px; /* start off-screen */
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        padding: 1rem 2rem;
+        border-radius: 8px;
+        opacity: 0;
+        z-index: 200;
+        pointer-events: none;
+      }
+
+      /* Animation to slide in and fade in */
+      @keyframes fadeInPopup {
+        from {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+
+      /* Animation to fade out */
+      @keyframes fadeOutPopup {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
+      }
+
+      /* Class to apply slide in animation */
+      .popup.show {
+        animation: fadeInPopup 0.5s ease-out forwards;
+      }
+      /* Class to apply fade out animation */
+      .popup.hide {
+        animation: fadeOutPopup 0.5s ease-out forwards;
+      }
+
+      .balance-change {
+        position: absolute;
+        animation: fadeInOut 2.5s ease forwards;
+        pointer-events: none;
+        font-size: larger;
+        color: white;
+      }
+      .balance-change.loss {
+        color: rgba(200, 0, 0, 1);
+      }
+      .balance-change.win {
+        color: rgba(0, 200, 0, 1);
+      }
+      @keyframes fadeInOut {
+        0% {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        20% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        80% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Left Sidebar: Account Status and Scoreboard -->
+      <aside class="stats">
+        <!-- Account Status Panel -->
+        <div class="panel account-panel">
+          <h3 id="accountStatusHeader">
+            <span id="username">...</span>'s Account
+            <button id="logout" title="Disconnect account">Logout</button>
+          </h3>
+          <div>
+            Account ID: <span id="account-id">(loading...)</span
+            ><button class="refresh btn-tiny">↺</button>
+          </div>
+          <div>Account Balance: <span id="account-balance">0</span> XLM</div>
+          <div>In-Game Balance: <span id="in-game-balance">0</span> XLM</div>
+          <div>Current Wager: <span id="wager">10</span> XLM</div>
+          <div class="action-buttons">
+            <button
+              class="action-button btn-green deposit"
+              title="Deposit 10 XLM into the contract for wagers"
+            >
+              Deposit
+            </button>
+            <button
+              class="action-button btn-red withdraw"
+              title="Withdraw your funds from the contract"
+            >
+              Withdraw
+            </button>
+          </div>
+          <button class="action-button btn-yellow" id="play">Join Queue</button>
+        </div>
+
+        <!-- Scoreboard Panel -->
+        <div class="panel scoreboard" style="display: none">
+          <div class="scoreboard-row header">
+            <div class="playerA" id="name"></div>
+            <div></div>
+            <div class="playerB" id="opponent-name"></div>
+          </div>
+          <div class="scoreboard-row">
+            <div class="playerA total" id="total-score">0</div>
+            <div class="label">score</div>
+            <div class="playerB total" id="opponent-total-score">0</div>
+          </div>
+          <div class="scoreboard-row">
+            <div class="playerA turn" id="turn-score">0</div>
+            <div class="label">turn</div>
+            <div class="playerB turn" id="opponent-turn-score">0</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Game Area (Center) -->
+      <main class="game-area"></main>
+
+      <!-- Chat Panel (Right) -->
+      <aside class="chat-panel" style="display: none">
+        <h2>Chat</h2>
+        <div class="chat-messages" id="chat-messages">
+          <!-- Chat messages will appear here -->
+        </div>
+        <input
+          type="text"
+          class="chat-input"
+          id="chat-input"
+          placeholder="Type a message..."
+        />
+      </aside>
+    </div>
+
+    <!-- Waiting for Opponent Modal (Full-screen overlay) -->
+    <div id="waitingModal" class="waiting-modal">
+      <div class="waiting-modal-content">
+        <div class="spinner"></div>
+        <p id="wait-status">Waiting for opponent...</p>
+      </div>
+    </div>
+
+    <!-- Dice Panel: Appears at bottom-center of Game Area -->
+    <div id="dicePanel" class="dice-panel">
+      <div class="dice-panel-content">
+        <h2>Select Dice to Hold</h2>
+        <div class="dice-container">
+          <!-- 6 dice will be dynamically inserted here -->
+        </div>
+        <div class="modal-buttons">
+          <button id="holdReroll" class="action-button btn-yellow">
+            Hold + Reroll
+          </button>
+          <button id="holdPass" class="action-button btn-green">
+            Hold + Pass
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
