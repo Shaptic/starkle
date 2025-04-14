@@ -30,10 +30,11 @@ class JoinRequest:
     def __hash__(self):
         return hash(self.address)
 
+
 @dataclass
 class Match:
     match_id: str
-    players: List[Tuple[JoinRequest, str]] # [((pk, username), sid)]
+    players: List[Tuple[JoinRequest, str]]  # [((pk, username), sid)]
     auth: Dict[str, str] = field(default_factory=dict)
 
 
@@ -42,10 +43,12 @@ L = log.prepare_log(__name__)
 HORIZON_URL = "https://horizon-testnet.stellar.org"
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 NETWORK_PASSPHRASE = sdk.Network.TESTNET_NETWORK_PASSPHRASE
-SOURCE_SEED = sdk.Keypair.from_secret("SA2N744UAZOBBGHQP7GGZ56BODFGD5AV4CTK36DTJEOYM3RR2ZBLTGMT")
+SOURCE_SEED = sdk.Keypair.from_secret(
+    "SA2N744UAZOBBGHQP7GGZ56BODFGD5AV4CTK36DTJEOYM3RR2ZBLTGMT"
+)
 CONTRACT_ID = "CAFWLMYR5JHUOL2EICORMQ475FJGHOMJLI47JITOEK2UGUC7R5PIQJIK"
 ONE_XLM = 10_000_000
-COST_TO_PLAY = 4 * ONE_XLM # ~$1
+COST_TO_PLAY = 4 * ONE_XLM  # ~$1
 
 BASE_FEE = 100
 
@@ -114,15 +117,11 @@ def on_join(data):
     _check_queue()
     return "joined"
 
+
 @socketio.on("auth_response")
 def on_auth_response(data):
-    """ Handle an auth_response from a player.
-    """
-    match_id, entry, player = map(data.get, (
-        "match_id",
-        "entry",
-        "player"
-    ))
+    """Handle an auth_response from a player."""
+    match_id, entry, player = map(data.get, ("match_id", "entry", "player"))
 
     L.info(f"Player {player[:8]}.. authorized match: {entry}")
 
@@ -139,7 +138,7 @@ def on_auth_response(data):
         L.info(f"Creating on-chain match between players in {match_id}.")
 
         try:
-            success, first_player = invoke_stellar_contract(match)
+            success, first_player = create_match(match)
         except Exception as e:
             L.exception("Error invoking stellar contract: %s", e)
             for (_, sid) in match.players:
@@ -156,12 +155,14 @@ def on_auth_response(data):
             for (_, sid) in match.players:
                 socketio.emit(
                     "match_start",
-                    {"match_id": match_id, "first_player": first_player, "users": usernames},
+                    {
+                        "match_id": match_id,
+                        "first_player": first_player,
+                        "users": usernames,
+                    },
                     room=sid,
                 )
-            L.info(
-                "Match %s started. %s goes first.", match_id, first_player
-            )
+            L.info("Match %s started. %s goes first.", match_id, first_player)
         else:
             for (_, sid) in match.players:
                 socketio.emit(
@@ -171,6 +172,7 @@ def on_auth_response(data):
                 )
             L.error("Match %s smart contract failed.", match_id)
         del active_matches[match_id]
+
 
 def _check_queue():
     """
@@ -186,15 +188,18 @@ def _check_queue():
 
         (player2, room2) = player_queue.popitem(last=False)
         if not balance_check(player2.address, room2):
-            player_queue[player1] = room1 # re-insert the first player back in
-            player_queue.move_to_end(player1, last=False) # move to front of queue
+            player_queue[player1] = room1  # re-insert the first player back in
+            player_queue.move_to_end(player1, last=False)  # move to front of queue
             continue
 
         match_id = f"{player1.address}|{player2.address}"
-        active_matches[match_id] = Match(match_id=match_id, players=[
-            [player1, room1],
-            [player2, room2],
-        ])
+        active_matches[match_id] = Match(
+            match_id=match_id,
+            players=[
+                [player1, room1],
+                [player2, room2],
+            ],
+        )
 
         # Build transaction with a Soroban contract invocation operation
         txn = build_invoke(player1.address, player2.address, auth=None)
@@ -220,83 +225,32 @@ def _check_queue():
 
         # Find the auth entry corresponding to each player and emit the entry to
         # them in its entirety.
-        players = { player1.address: room1, player2.address: room2 }
+        players = {player1.address: room1, player2.address: room2}
         for raw_entry in resp.results[0].auth:
             entry = sdk.xdr.SorobanAuthorizationEntry.from_xdr(raw_entry)
-            if entry.credentials.type != sdk.xdr.SorobanCredentialsType.SOROBAN_CREDENTIALS_ADDRESS:
+            if (
+                entry.credentials.type
+                != sdk.xdr.SorobanCredentialsType.SOROBAN_CREDENTIALS_ADDRESS
+            ):
                 continue
 
-            addr = sdk.Address.from_xdr_sc_address(entry.credentials.address.address).address
+            addr = sdk.Address.from_xdr_sc_address(
+                entry.credentials.address.address
+            ).address
             if addr not in players:
                 L.warning(f"Unknown auth entry {addr}: {raw_entry}")
                 continue
 
             socketio.emit(
                 "auth_request",
-                { "match_id": match_id, "entry": raw_entry },
+                {"match_id": match_id, "entry": raw_entry},
                 room=players.pop(addr),
             )
         L.info(f"Match {match_id} created between {player1} and {player2}")
 
 
-def build_invoke(player1: str, player2: str, auth: Optional[List[Any]] = None):
-    rpc = sdk.SorobanServer(SOROBAN_RPC_URL)
-    src = rpc.load_account(SOURCE_SEED.public_key)
-    p1_addr, p2_addr = map(sdk.Address, (player1, player2))
-
-    # Build transaction with a Soroban contract invocation operation
-    return (sdk.TransactionBuilder(
-        source_account=src,
-        network_passphrase=NETWORK_PASSPHRASE,
-        base_fee=BASE_FEE,
-    ).append_operation(sdk.InvokeHostFunction(
-        sdk.xdr.HostFunction(
-            sdk.xdr.HostFunctionType.HOST_FUNCTION_TYPE_INVOKE_CONTRACT,
-            sdk.xdr.InvokeContractArgs(
-                sdk.Address(CONTRACT_ID).to_xdr_sc_address(),
-                sdk.scval.to_symbol("engage").sym,
-                [
-                    p1_addr.to_xdr_sc_val(),
-                    p2_addr.to_xdr_sc_val(),
-                ]
-            )
-        ),
-        auth=auth
-    )).set_timeout(30).build())
-
-
-def build_balance(player: str):
-    rpc = sdk.SorobanServer(SOROBAN_RPC_URL)
-    src = rpc.load_account(SOURCE_SEED.public_key)
-    addr = sdk.Address(player)
-
-    # Build transaction with a Soroban contract invocation operation
-    return (sdk.TransactionBuilder(
-        source_account=src,
-        network_passphrase=NETWORK_PASSPHRASE,
-        base_fee=BASE_FEE,
-    ).append_operation(sdk.InvokeHostFunction(
-        sdk.xdr.HostFunction(
-            sdk.xdr.HostFunctionType.HOST_FUNCTION_TYPE_INVOKE_CONTRACT,
-            sdk.xdr.InvokeContractArgs(
-                sdk.Address(CONTRACT_ID).to_xdr_sc_address(),
-                sdk.scval.to_symbol("balance").sym,
-                [ addr.to_xdr_sc_val() ],
-            )
-        ),
-    )).set_timeout(30).build())
-
-def invoke_stellar_contract(match):
-    """
-    Simulate invoking a smart contract on the Stellar network.
-
-    Replace this function with your actual integration.
-
-    Returns:
-        (bool, str): A tuple where the first element indicates success,
-                     and the second element is the first player's ID.
-    """
-    auths = [ match.auth[player.address] for (player, _) in match.players ]
+def create_match(match):
+    auths = [match.auth[player.address] for (player, _) in match.players]
     rpc = sdk.SorobanServer(SOROBAN_RPC_URL)
     txn = build_invoke(*[player.address for (player, _) in match.players], auth=auths)
     try:
@@ -311,8 +265,9 @@ def invoke_stellar_contract(match):
         L.debug(f"Match transaction submission status: {resp.status}")
 
         if resp.status != sdk.soroban_rpc.SendTransactionStatus.PENDING:
-            L.error("Match transaction failed: "
-                f"{' '.join(resp.diagnostic_events_xdr)}")
+            L.error(
+                "Match transaction failed: " f"{' '.join(resp.diagnostic_events_xdr)}"
+            )
 
         getresp = None
         attempts = 0
@@ -340,6 +295,7 @@ def invoke_stellar_contract(match):
         L.warning(f"Simulation failed: {e}", exc_info=True)
         return False, None
 
+
 def balance_check(player: str, room: str) -> bool:
     txn = build_balance(player)
     L.info(f"Built balance transaction {txn.to_xdr()}")
@@ -348,19 +304,25 @@ def balance_check(player: str, room: str) -> bool:
     resp = rpc.simulate_transaction(txn)
     if resp.error:
         L.warning(f"Simulation failed: {resp.error}")
-        socketio.emit("match_error", {
-            "error": "Balance check failed.",
-            "details": resp.error,
-        }, room=room)
+        socketio.emit(
+            "match_error",
+            {
+                "error": "Balance check failed.",
+                "details": resp.error,
+            },
+            room=room,
+        )
         return False
 
     elif len(resp.results) > 0 and resp.results[0].xdr:
         balance = sdk.scval.from_int128(resp.results[0].xdr)
         L.info(f"{player} balance: {balance}")
         if balance < COST_TO_PLAY:
-            socketio.emit("match_error", {
-                "error": "Insufficient funds, please Deposit more."
-            }, room=room)
+            socketio.emit(
+                "match_error",
+                {"error": "Insufficient funds, please Deposit more."},
+                room=room,
+            )
             return False
         return True
 
@@ -368,6 +330,53 @@ def balance_check(player: str, room: str) -> bool:
         L.warning(f"Unknown branch: {resp}")
 
     return False
+
+
+def build_invoke(player1: str, player2: str, auth: Optional[List[Any]] = None):
+    p1_addr, p2_addr = map(sdk.Address, (player1, player2))
+    return build_invocation(
+        "engage",
+        [
+            p1_addr.to_xdr_sc_val(),
+            p2_addr.to_xdr_sc_val(),
+        ],
+        auth=auth,
+    )
+
+
+def build_balance(player: str):
+    return build_invocation("balance", [sdk.Address(player).to_xdr_sc_val()])
+
+
+def build_invocation(fn_name: str, args: List[sdk.xdr.sc_val.SCVal], auth=None):
+    rpc = sdk.SorobanServer(SOROBAN_RPC_URL)
+    src = rpc.load_account(SOURCE_SEED.public_key)
+    addr = sdk.Address(player)
+
+    # Build transaction with a Soroban contract invocation operation
+    return (
+        sdk.TransactionBuilder(
+            source_account=src,
+            network_passphrase=NETWORK_PASSPHRASE,
+            base_fee=BASE_FEE,
+        )
+        .append_operation(
+            sdk.InvokeHostFunction(
+                sdk.xdr.HostFunction(
+                    sdk.xdr.HostFunctionType.HOST_FUNCTION_TYPE_INVOKE_CONTRACT,
+                    sdk.xdr.InvokeContractArgs(
+                        sdk.Address(CONTRACT_ID).to_xdr_sc_address(),
+                        sdk.scval.to_symbol(fn_name).sym,
+                        args,
+                    ),
+                ),
+                auth=auth,
+            )
+        )
+        .set_timeout(30)
+        .build()
+    )
+
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)

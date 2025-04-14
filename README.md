@@ -1,10 +1,10 @@
-# Sfarkle: Farkle on the Stellar Network
+# Starkle: Farkle on the Stellar Network
 
 Farkle is a dice game played between two players where you try to rack up points by creating combinations of dice during your rolls.
 
 ## Rules + Scoring
 
-Rules can depend on the variation you're playing, but the rules in this variant are based directly on the rules in [_Kingdom Come Deliverance 2_](https://www.ign.com/wikis/kingdom-come-deliverance-2/How_to_Play_Dice). To make a long story short:
+Rules can depend on the variation you're playing, but the rules in this variant are based directly on the rules in [_Kingdom Come: Deliverance 2_](https://www.ign.com/wikis/kingdom-come-deliverance-2/How_to_Play_Dice). To make a long story short:
 
 * 1s are worth 100
 * 5s are worth 50
@@ -14,7 +14,7 @@ Rules can depend on the variation you're playing, but the rules in this variant 
 * Triples are worth 100 times the dice amount (three 3s = 300, etc.) except for for ones which are special and worth 1000.
 * More than triple will double the score for each additional die (four 1s = 2000, five 2s = 200 * 2 * 2 = 800).
 
-**That's it!** You can see the detailed scoring algorithm in the contract's [`score_turn` function](contract/contracts/farkle/src/lib.rs).
+**That's it!** You can see the detailed scoring algorithm in the contract's [`score_turn` function](contract/contracts/farkle/src/lib.rs#L558).
 
 ## Playing the game
 
