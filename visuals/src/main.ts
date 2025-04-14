@@ -11,7 +11,7 @@ import Freighter from "@stellar/freighter-api";
 import DiceBox from "@3d-dice/dice-box-threejs";
 
 import { makeClient } from "./contracts/helpers";
-import { SERVER_URL, ONE_XLM } from "./contracts/constants";
+import { SERVER_URL, ONE_XLM, PASSPHRASE } from "./contracts/constants";
 
 // Listen for the "roll" event from the server.
 import { BustEvent, HoldEvent, RollEvent, WinEvent } from "./contracts/events";
@@ -19,6 +19,12 @@ import { Eventing } from "./eventing";
 import { getAccountBalance, getGameBalance, sleep } from "./helpers";
 import { roll, yeeter } from "./game";
 import { socket } from "./socket";
+import {
+  showPopup,
+  showTopPopup,
+  modalCancellable,
+  modalFailure,
+} from "./popups";
 
 (globalThis as any).Buffer = (window as any).Buffer = BufferPolyfill;
 
@@ -26,91 +32,88 @@ import { IWallet, makeKeypairWallet } from "./iwallet";
 
 let user: IWallet;
 let uname: string;
-let opponent: string;
 let userPk: Keypair;
+let opponent: string;
 
 function logout() {
   window.localStorage.clear();
   window.location.href = "/";
 }
 
+async function login() {
+  switch (window.localStorage.getItem("walletMethod")) {
+    case "import":
+      let [username, secretKey] = ["username", "secretKey"].map((k) =>
+        window.localStorage.getItem(k),
+      );
+      uname = username!;
+      userPk = Keypair.fromSecret(secretKey!);
+      user = makeKeypairWallet(userPk);
+
+      console.debug(`Logged in ${uname} as ${(await user.getAddress()).address}`);
+      break;
+
+    case "generate":
+      $("#waitingModal").css("display", "flex");
+      $("#wait-status").text(`Generating account w/ play money...`);
+
+      const s = new Server(SERVER_URL);
+
+      uname = window.localStorage.getItem("username")!;
+      userPk = Keypair.random();
+      await s.requestAirdrop(userPk.publicKey());
+
+      $("#wait-status").text(
+        `Account ${userPk.publicKey().substring(0, 6)}... funded!`,
+      );
+      modalCancellable();
+
+      // Save it so we don't refund on a refresh.
+      window.localStorage.setItem("secretKey", userPk.secret());
+      window.localStorage.setItem("walletMethod", "import");
+
+      user = makeKeypairWallet(userPk);
+      break;
+
+    case "freighter":
+      const { isConnected } = await Freighter.isConnected();
+      if (!isConnected) {
+        logout();
+      }
+
+      const { address, error } = await Freighter.requestAccess();
+      if (!address) {
+        alert(`Failed to connect to Freighter: ${error}`);
+        logout();
+      }
+
+      const { network, networkPassphrase } = await Freighter.getNetwork();
+      if (networkPassphrase != PASSPHRASE) {
+        console.error(network, networkPassphrase);
+        alert("Account is on the wrong network! Use testnet pls.");
+        logout();
+      }
+
+      // @ts-ignore
+      user = Freighter;
+      uname = window.localStorage.getItem("username")!;
+      userPk = Keypair.fromPublicKey(await getAddress());
+      break;
+
+    default:
+      alert("Invalid login! Redirecting to login page...");
+      logout();
+  }
+}
+
+
 if (!window.localStorage.getItem("signedUp")) {
   logout();
 }
-
-switch (window.localStorage.getItem("walletMethod")) {
-  case "import":
-    let [username, secretKey] = ["username", "secretKey"].map((k) =>
-      window.localStorage.getItem(k),
-    );
-    uname = username!;
-    userPk = Keypair.fromSecret(secretKey!);
-    user = makeKeypairWallet(userPk);
-
-    console.debug(`Logged in ${uname} as ${(await user.getAddress()).address}`);
-    break;
-
-  case "generate":
-    $("#waitingModal").css("display", "flex");
-    $("#wait-status").text(`Generating account w/ play money...`);
-
-    const s = new Server(SERVER_URL);
-
-    uname = window.localStorage.getItem("username")!;
-    userPk = Keypair.random();
-    await s.requestAirdrop(userPk.publicKey());
-
-    $("#wait-status").text(
-      `Account ${userPk.publicKey().substring(0, 6)}... funded!`,
-    );
-    modalCancellable();
-
-    // Save it so we don't refund on a refresh.
-    window.localStorage.setItem("secretKey", userPk.secret());
-    window.localStorage.setItem("walletMethod", "import");
-
-    user = makeKeypairWallet(userPk);
-    break;
-
-  case "freighter":
-    const { isConnected } = await Freighter.isConnected();
-    if (!isConnected) {
-      logout();
-    }
-
-    const { address, error } = await Freighter.requestAccess();
-    if (!address) {
-      alert(`Failed to connect to Freighter: ${error}`);
-      logout();
-    }
-
-    const { network, networkPassphrase } = await Freighter.getNetwork();
-    if (network != "TESTNET" || networkPassphrase != Networks.TESTNET) {
-      console.error(network, networkPassphrase);
-      alert("Account is on the wrong network! Use testnet pls.");
-      logout();
-    }
-
-    // @ts-ignore
-    user = Freighter;
-    uname = window.localStorage.getItem("username")!;
-    userPk = Keypair.fromPublicKey(await getAddress());
-    break;
-
-  default:
-    alert("Invalid login! Redirecting to login page...");
-    logout();
-}
-
-$("#username").text(uname!);
+await login();
 
 const eventer = new Eventing();
 const contract = await makeClient(user!);
-
-$("#account-id").on("click", () => {
-  navigator.clipboard.writeText(userPk.publicKey());
-});
-
 const diceBox = new DiceBox(".game-area", {
   theme_surface: "taverntable",
   theme_texture: "wood",
@@ -124,12 +127,20 @@ const diceBox = new DiceBox(".game-area", {
 });
 
 async function main() {
+  $("#username").text(uname!);
+
   $("#account-id")
     .text(`${userPk.publicKey().substring(0, 8)}...`)
-    .attr("title", `${userPk.publicKey()} (click to copy)`);
-  getBalances();
+    .attr("title", `${userPk.publicKey()} (click to copy)`)
+    .on("click", () => {
+      navigator.clipboard.writeText(userPk.publicKey());
+    });
 
   diceBox.initialize();
+  getBalances();
+  contract.wager().then((txn) => {
+    $("#wager").text((txn.result / ONE_XLM).toString());
+  });
 
   $(".deposit").on("click", onDepositBtn);
   $(".withdraw").on("click", onWithdrawBtn);
@@ -137,7 +148,6 @@ async function main() {
 
   // When the play button is clicked, show the modal popup
   $("#play").on("click", onPlayBtn);
-
   $("#logout").on("click", () => {
     window.localStorage.clear();
     window.location.href = "/";
@@ -189,7 +199,7 @@ async function handleAuth(event: { match_id: string; entry: string }) {
         payload.toXDR("base64"),
         {
           address: userPk.publicKey(),
-          networkPassphrase: Networks.TESTNET,
+          networkPassphrase: PASSPHRASE,
         },
       );
       console.log("Auth result:", signedAuthEntry, signerAddress);
@@ -233,6 +243,7 @@ async function handleAuth(event: { match_id: string; entry: string }) {
 }
 
 async function handleMatchError(event: any) {
+  $("#play").attr("disabled");
   modalFailure(event.error ?? JSON.stringify(event));
 }
 
@@ -266,6 +277,7 @@ async function handleMatchStart(event: {
       try {
         const rollResult = await safeRoll(user, opponent);
         await diceBox.roll(renderRoll(rollResult));
+        break;
       } catch (err: any) {
         console.error(err);
       }
@@ -274,15 +286,21 @@ async function handleMatchStart(event: {
 }
 
 async function onPlayBtn() {
-  $("#wait-status").text("Waiting for opponent...");
-  $("#waitingModal").css("display", "flex");
   if (socket.disconnected) {
     modalFailure("Not connected to server :( Try refreshing?");
   } else {
-    socket.emit("join", {
-      address: userPk.publicKey(),
-      username: uname,
-    });
+    socket.emit(
+      "join",
+      {
+        address: userPk.publicKey(),
+        username: uname,
+      },
+      (msg: any) => {
+        console.log("Ack:", msg);
+        $("#wait-status").text("Waiting for opponent...");
+        $("#waitingModal").css("display", "flex");
+      },
+    );
   }
 
   modalCancellable(() => {
@@ -292,15 +310,15 @@ async function onPlayBtn() {
 }
 
 async function onDepositBtn() {
-  $("#wait-status").text("Depositing 10 XLM...");
+  $("#wait-status").text("Depositing 20 XLM...");
   $("#waitingModal").css("display", "flex");
-  console.debug("Depositing 1K XLM into the contract...");
+  console.debug("Depositing 20 XLM into the contract...");
 
   return yeeter(
     await contract
       .deposit({
         to: userPk.publicKey(),
-        amount: 10n * ONE_XLM,
+        amount: 20n * ONE_XLM,
       })
       .then((txn) => {
         $("#wait-status").text("Authorizing & sending deposit transaction...");
@@ -367,42 +385,6 @@ function safeRoll(
       return Promise.reject(err);
     },
   );
-}
-
-function modalCancellable(action?: CallableFunction) {
-  const modalContent = $(".waiting-modal-content");
-  modalRemoveBtn(); // remove existing button, if any
-  modalContent.append(
-    $("<button>")
-      .addClass("close-button")
-      .on("click", () => {
-        // Put the spinner back and remove the close button.
-        modalContent
-          .children(".error-icon")
-          .removeClass("error-icon")
-          .addClass("spinner");
-        modalRemoveBtn();
-        $("#wait-status").text("");
-        $("#waitingModal").hide();
-
-        if (action) action();
-      })
-      .html("&times;"),
-  );
-}
-
-function modalRemoveBtn() {
-  $(".waiting-modal-content button").remove();
-}
-
-function modalFailure(text: string) {
-  const modalContent = $(".waiting-modal-content");
-  $("#wait-status").text(text);
-  modalContent
-    .children(".spinner")
-    .removeClass("spinner")
-    .addClass("error-icon");
-  modalCancellable();
 }
 
 async function onDiceTurnBtn(stop: boolean) {
@@ -474,6 +456,22 @@ async function onRoll(event: Event) {
 async function onReRoll(event: Event) {
   const data = (event as CustomEvent).detail as HoldEvent;
 
+  if (data.player !== userPk.publicKey() && data.dice.length > 0) {
+    const name = $("#opponent-name").text();
+
+    // Change the list of raw dice into "1, 1, and 5", for example, or just "a
+    // 1" if it's singular.
+    let dice = "";
+    if (data.dice.length === 1) {
+      dice = `a ${data.dice[0]}`;
+    } else {
+      dice = `${data.dice.slice(0, -1).join(", ")}, and ${data.dice[data.dice.length - 1]}`;
+    }
+
+    data.dice.slice(0, -1);
+    showTopPopup(`${name} kept ${dice} for ${data.score} points.`);
+  }
+
   // Perform local score calculation:
   //
   // If they held, accumulate into their turn score.
@@ -520,6 +518,7 @@ async function onWin(event: Event) {
   $("#waitingModal").css("display", "flex");
   $(".scoreboard").fadeOut();
   $(".chat-panel").fadeOut();
+  $("#play").attr("disabled");
 
   if (data.player === userPk.publicKey()) {
     $("#wait-status").text(
@@ -592,37 +591,6 @@ function renderBalanceUpdate(
 
   e.parent().append(span);
   setTimeout(() => span.remove(), 2500);
-}
-
-/**
- * Displays a transparent popup in the center of the game window.
- *
- * @param {string} message - The text to display inside the popup.
- * @param {string} color - A CSS color string for the text (e.g., "#FF0000").
- * @param {number} [duration=3000] - How long (in ms) to display the popup before fading out.
- */
-function showPopup(message: string, color: string, duration: number = 3000) {
-  // Try to reuse an existing popup element
-  let popup = $("#popup");
-  if (popup.length === 0) {
-    popup = $('<div id="popup">').addClass("popup");
-    $(document.body).append(popup);
-  }
-
-  // Set the popup text and text color, removing any previous hides.
-  popup.html(message).css("color", color).removeClass("hide");
-
-  // Trigger reflow to restart the animation if necessary.
-  void popup.get(0)!.offsetWidth;
-
-  // Add the show class to animate it in.
-  popup.addClass("show");
-
-  // After the specified duration, remove the "show" class and add "hide" to fade out.
-  setTimeout(() => {
-    popup.removeClass("show");
-    popup.addClass("hide");
-  }, duration);
 }
 
 main();

@@ -7,7 +7,8 @@ export let socket: Socket = io("http://localhost:5000", {
   reconnectionAttempts: 10,
   reconnectionDelay: 250,
   reconnectionDelayMax: 2000,
-  retries: 5,
+  // retries: 5,
+  ackTimeout: 1000, // wait a bit before retrying
 });
 
 // Function to update status in the footer.
