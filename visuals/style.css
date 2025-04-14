@@ -497,3 +497,46 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* Popup Styling */
+.top-popup {
+  position: fixed;
+  top: -100px; /* Start hidden above the screen */
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 400px;
+  width: 90%;
+  background-color: #ffffff;
+  color: #333;
+  padding: 1rem;
+  border-radius: 4px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
+  overflow-wrap: break-word;
+  opacity: 0;
+  z-index: 1000;
+}
+
+/* Class to trigger the animation */
+.top-popup.show {
+  animation: slideInTop 3s ease forwards;
+}
+
+/* Animation: slide in, hold, then slide out */
+@keyframes slideInTop {
+  0% {
+    top: -100px;
+    opacity: 0;
+  }
+  20% {
+    top: 20px; /* Slide down to 20px from top */
+    opacity: 1;
+  }
+  80% {
+    top: 20px; /* Stay at top for a while */
+    opacity: 1;
+  }
+  100% {
+    top: -100px; /* Slide back up */
+    opacity: 0;
+  }
+}

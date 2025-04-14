@@ -1,6 +1,6 @@
 import { Keypair, Networks } from "@stellar/stellar-sdk";
 import { basicNodeSigner } from "@stellar/stellar-sdk/contract";
-import { SERVER_URL } from "./contracts/constants";
+import { PASSPHRASE, SERVER_URL } from "./contracts/constants";
 
 //
 // Add a wallet interface conforming to https://stellar.org/protocol/sep-43
@@ -43,7 +43,7 @@ export interface IWallet {
 }
 
 export function makeKeypairWallet(kp: Keypair): IWallet {
-  const base = basicNodeSigner(kp, Networks.TESTNET);
+  const base = basicNodeSigner(kp, PASSPHRASE);
 
   class KeypairWallet implements IWallet {
     getAddress() {
@@ -61,7 +61,7 @@ export function makeKeypairWallet(kp: Keypair): IWallet {
     getNetwork() {
       return Promise.resolve({
         network: "TESTNET",
-        networkPassphrase: Networks.TESTNET,
+        networkPassphrase: PASSPHRASE,
       });
     }
     kp() {
