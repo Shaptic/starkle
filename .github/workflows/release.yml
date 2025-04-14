@@ -12,7 +12,7 @@ jobs:
     with:
       release_name: ${{ github.ref_name }}
       release_description: 'Farkle Contract Release'
-      relative_path: '["/contract/"]'
+      relative_path: 'contract'
       package: 'farkle'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
