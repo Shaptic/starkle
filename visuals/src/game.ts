@@ -208,3 +208,15 @@ function buildLedgerKey(enumName: string, pk: string): xdr.LedgerKey {
     }),
   );
 }
+
+// Change the list of raw dice into "1, 1, and 5", for example, or just "a 1" if
+// it's singular.
+export function dice2words(dice: number[]): string {
+  if (dice.length === 1) {
+    return `a ${dice[0]}`;
+  }
+
+  const comma = dice.length > 2 ? "," : "";
+  const sorted = Array.from(dice).sort(); // don't change passed param
+  return `${sorted.slice(0, -1).join(", ")}${comma} and ${sorted.slice(-1)}`;
+}

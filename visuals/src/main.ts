@@ -17,7 +17,7 @@ import { SERVER_URL, ONE_XLM, PASSPHRASE } from "./contracts/constants";
 import { BustEvent, HoldEvent, RollEvent, WinEvent } from "./contracts/events";
 import { Eventing } from "./eventing";
 import { getAccountBalance, getGameBalance, sleep } from "./helpers";
-import { roll, yeeter } from "./game";
+import { dice2words, roll, yeeter } from "./game";
 import { socket } from "./socket";
 import {
   showPopup,
@@ -50,7 +50,9 @@ async function login() {
       userPk = Keypair.fromSecret(secretKey!);
       user = makeKeypairWallet(userPk);
 
-      console.debug(`Logged in ${uname} as ${(await user.getAddress()).address}`);
+      console.debug(
+        `Logged in ${uname} as ${(await user.getAddress()).address}`,
+      );
       break;
 
     case "generate":
@@ -105,7 +107,6 @@ async function login() {
       logout();
   }
 }
-
 
 if (!window.localStorage.getItem("signedUp")) {
   logout();
@@ -275,7 +276,7 @@ async function handleMatchStart(event: {
     let attempts = 0;
     while (attempts++ < 5) {
       try {
-        const rollResult = await safeRoll(user, opponent);
+        const rollResult = await safeRoll(user, opponent, "Building first roll transaction...");
         await diceBox.roll(renderRoll(rollResult));
         break;
       } catch (err: any) {
@@ -366,10 +367,11 @@ async function onWithdrawBtn() {
 function safeRoll(
   w: IWallet,
   opponent: string,
+  message?: string,
   save?: number[],
   stop?: boolean,
 ): Promise<number[]> {
-  $("#wait-status").text("Building roll transaction...");
+  $("#wait-status").text(message ?? "Building roll transaction...");
   $("#waitingModal").css("display", "flex");
   console.debug(
     `Rolling against ${opponent}, saving ${save} and stop: ${stop}`,
@@ -390,11 +392,19 @@ function safeRoll(
 async function onDiceTurnBtn(stop: boolean) {
   $("#dicePanel").hide();
 
+  // The actual values
+  const dice: number[] = $(".die.active").map(function() {
+    return parseInt($(this).text());
+  }).toArray();
+
+  // and their respective indices
   const sel: number[] = $(".die.active")
     .map(function () {
       return parseInt($(this).data("index"));
     })
     .toArray();
+
+  let msg: string = "Building roll transaction to save ";
 
   if (!stop) {
     let rollCount = $(".die").length - sel.length;
@@ -402,13 +412,14 @@ async function onDiceTurnBtn(stop: boolean) {
       rollCount = 6;
     }
     const rollExpr = rollCount === 1 ? "die" : "dice";
-    showPopup(`Re-rolling ${rollCount} ${rollExpr}...`, "#eee");
+
+    msg += `${dice2words(dice)} and re-roll ${rollCount} ${rollExpr}...`;
   } else {
-    showPopup("Passed!", "#eee");
+    msg += `${dice2words(dice)} and pass...`;
   }
 
   try {
-    const rollResult = await safeRoll(user, opponent, sel, stop);
+    const rollResult = await safeRoll(user, opponent, msg, sel, stop);
     if (rollResult.length > 0) {
       diceBox.roll(renderRoll(rollResult));
     }
@@ -430,7 +441,7 @@ async function onRoll(event: Event) {
 
   if (data.dice.length === 0) {
     const pronoun = data.player === userPk.publicKey() ? "their" : "your";
-    showPopup(`It's ${pronoun} turn!`, "#eee");
+    showPopup(`It's ${pronoun} turn!`);
 
     // If it's now our turn, kick off the roll state machine.
     if (pronoun === "your") {
@@ -458,18 +469,10 @@ async function onReRoll(event: Event) {
 
   if (data.player !== userPk.publicKey() && data.dice.length > 0) {
     const name = $("#opponent-name").text();
+    const dice = dice2words(data.dice);
+    const end = data.stop ? " and passed to you" : "";
 
-    // Change the list of raw dice into "1, 1, and 5", for example, or just "a
-    // 1" if it's singular.
-    let dice = "";
-    if (data.dice.length === 1) {
-      dice = `a ${data.dice[0]}`;
-    } else {
-      dice = `${data.dice.slice(0, -1).join(", ")}, and ${data.dice[data.dice.length - 1]}`;
-    }
-
-    data.dice.slice(0, -1);
-    showTopPopup(`${name} kept ${dice} for ${data.score} points.`);
+    showTopPopup(`${name} kept ${dice} for ${data.score} points${end}.`);
   }
 
   // Perform local score calculation:
@@ -496,29 +499,23 @@ async function onBust(event: Event) {
 
   const weBust = data.player === userPk.publicKey();
   const player = weBust ? "You" : "Opponent";
-  showPopup(`${player} busted!`, "#eee", 5000);
+  showTopPopup(`${player} busted with ${dice2words(data.dice)}!`);
   let prefix = !weBust ? "opponent-" : "";
   $(`#${prefix}turn-score`).text("0");
 
   // If they busted, it's our roll now.
   if (!weBust) {
     await sleep(3000);
-    showPopup("Rolling!", "#eee");
 
     // Don't render the roll here, because this call results in a roll event
     // which will trigger rendering.
-    safeRoll(user, opponent);
+    safeRoll(user, opponent, "Building a fresh roll transaction...");
   }
 }
 
 async function onWin(event: Event) {
   const data = (event as CustomEvent).detail as WinEvent;
   diceBox.clearDice();
-
-  $("#waitingModal").css("display", "flex");
-  $(".scoreboard").fadeOut();
-  $(".chat-panel").fadeOut();
-  $("#play").attr("disabled");
 
   if (data.player === userPk.publicKey()) {
     $("#wait-status").text(
@@ -530,7 +527,14 @@ async function onWin(event: Event) {
     );
   }
 
-  modalCancellable(() => getBalances());
+  modalCancellable(() => {
+    getBalances();
+
+    $("#waitingModal").css("display", "flex");
+    $(".scoreboard").fadeOut();
+    $(".chat-panel").fadeOut();
+    $("#play").attr("disabled");
+  });
 }
 
 function renderRoll(roll: number[]): string {

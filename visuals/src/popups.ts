@@ -1,3 +1,5 @@
+import $ from "jquery";
+
 export function modalCancellable(action?: CallableFunction) {
   const modalContent = $(".waiting-modal-content");
   modalRemoveBtn(); // remove existing button, if any
@@ -42,9 +44,10 @@ export function modalFailure(text: string) {
  */
 export function showPopup(
   message: string,
-  color: string,
+  color: string = "#eee",
   duration: number = 3000,
 ) {
+  debugger;
   // Try to reuse an existing popup element
   let popup = $("#popup");
   if (popup.length === 0) {

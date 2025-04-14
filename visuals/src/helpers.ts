@@ -23,16 +23,26 @@ export async function getAccountBalance(w: IWallet): Promise<{
       }),
     ),
   );
-  const balance = r.entries[0]!.val.account().balance().toBigInt() / ONE_XLM;
+
+  let balance: number | bigint = r.entries[0]!.val.account()
+    .balance()
+    .toBigInt();
+  if (balance <= Number.MAX_SAFE_INTEGER) {
+    // better renders, iff it fits
+    balance = Number(balance) / Number(ONE_XLM);
+  } else {
+    // better precision
+    balance /= ONE_XLM;
+  }
 
   console.debug(
     `Loaded account info for ${pk.publicKey().substring(0, 6)}: ${balance} XLM.`,
   );
 
   const elem = $("#account-balance");
-  const oldBalance = parseFloat(elem.text()).toFixed(2);
-  const newBalance = parseFloat(balance.toString()).toFixed(2);
-  elem.text(parseFloat(newBalance).toFixed(2));
+  const oldBalance = elem.text();
+  const newBalance = balance.toString();
+  elem.text(Number(balance).toFixed(2));
 
   return { element: elem, oldBalance, newBalance };
 }
@@ -46,11 +56,16 @@ export async function getGameBalance(w: IWallet): Promise<{
   const { address } = await w.getAddress();
 
   const txn = await contract.balance({ player: address });
-  const b = txn.result / ONE_XLM;
+  let b: number | bigint;
+  if (txn.result <= Number.MAX_SAFE_INTEGER) {
+    b = Number(txn.result) / Number(ONE_XLM);
+  } else {
+    b = txn.result / ONE_XLM;
+  }
 
   const elem = $("#in-game-balance");
-  const oldBalance = parseFloat(elem.text()).toFixed(2);
-  const newBalance = parseFloat(b.toString()).toFixed(2);
+  const oldBalance = elem.text();
+  const newBalance = b.toString();
   elem.text(parseFloat(newBalance).toFixed(2));
 
   return { element: elem, oldBalance, newBalance };

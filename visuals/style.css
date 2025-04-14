@@ -348,7 +348,7 @@ body {
   .container {
     display: flex;
     flex-direction: column;
-    height: auto;
+    /* height: auto; */
   }
   .stats,
   .game-area,
@@ -357,7 +357,7 @@ body {
     box-shadow: none;
   }
   .panel {
-    max-width: 220px;
+    max-width: 420px;
   }
   .stats {
     border-bottom: 1px solid #ccc;
@@ -389,10 +389,12 @@ body {
 /* Animation to slide in and fade in */
 @keyframes fadeInPopup {
   from {
-    opacity: 1;
-  }
-  100% {
+    bottom: -100px;
     opacity: 0;
+  }
+  to {
+    bottom: 50%;
+    opacity: 1;
   }
 }
 
