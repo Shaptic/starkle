@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, log};
 use soroban_sdk::{panic_with_error, token};
-use soroban_sdk::{vec, Address, BytesN, Env, IntoVal, Map, Val, Vec};
+use soroban_sdk::{vec, Address, BytesN, Env, IntoVal, Map, Vec};
 
 #[contract]
 pub struct Farkle;
@@ -82,15 +82,12 @@ impl Farkle {
      * their current holdings.
      */
     pub fn shutdown(env: Env) -> i128 {
-        Self::check_init(&env);
         let admin: Address = env.storage().instance().get(&AdminData::Admin).unwrap();
         admin.require_auth();
 
-        let t = Self::token(&env);
-
         // Kill the game.
         let contract = env.current_contract_address();
-        let client = token::Client::new(&env, &t);
+        let client = token::Client::new(&env, &Self::token(&env));
         let balance = client.balance(&contract);
         client.transfer(&contract, &admin, &balance);
 
@@ -103,7 +100,7 @@ impl Farkle {
     pub fn balance(env: &Env, player: Address) -> i128 {
         Self::check_init(&env);
         let store = env.storage().persistent();
-        let user = UserData::Balance(player.clone());
+        let user = UserData::Balance(player);
 
         store.get(&user).unwrap_or(-1)
     }
@@ -167,9 +164,7 @@ impl Farkle {
 
             // Doing this in the if block avoids an RPC bug that prevents us
             // from removing keys that don't exist.
-            env.storage()
-                .persistent()
-                .remove(&UserData::Balance(from.clone()));
+            env.storage().persistent().remove(&UserData::Balance(from));
         }
 
         balance
@@ -233,8 +228,8 @@ impl Farkle {
 
         // Lower both players balances so they can't withdraw what they're
         // currently betting in the game.
-        Self::hold_balance(&env, a.clone());
-        Self::hold_balance(&env, b.clone());
+        Self::hold_balance(&env, &a);
+        Self::hold_balance(&env, &b);
 
         // Mark players as being in a match against each other.
         store.set(&UserData::Match(a.clone()), &b);
@@ -250,7 +245,7 @@ impl Farkle {
             store.set(&UserData::Turn(b.clone()), &b);
         }
 
-        Self::emit_match(&env, a, b, first == 1)
+        Self::emit_match(&env, &a, &b, first == 1)
     }
 
     /**
@@ -364,8 +359,7 @@ impl Farkle {
                     roll_count = 6;
                 }
             } else {
-                let mut score = store.get(&UserData::Score(player.clone())).unwrap_or(0);
-                score += turn_score;
+                let score = store.get(&UserData::Score(player.clone())).unwrap_or(0) + turn_score;
 
                 // Did the player win? If so, transfer their winnings and
                 // end the game.
@@ -393,12 +387,8 @@ impl Farkle {
 
                 return roll;
             }
-
-            // If they didn't have a last roll, this is a brand new roll.
         } else {
-            if save.len() > 0 {
-                panic_with_error!(&env, Error::BadDieHold); // ui error
-            }
+            // If they didn't have a last roll, this is a brand new roll.
             roll_count = 6;
         }
 
@@ -409,8 +399,8 @@ impl Farkle {
 
         // If they bust out immediately, end the turn early.
         if Self::score_turn(&env, &roll) == 0 {
-            Self::emit_bust(&env, player.clone(), &roll);
             Self::pass_turn(&env, player.clone(), opp);
+            Self::emit_bust(&env, player.clone(), &roll);
         } else {
             // Store the last roll.
             store.set(&UserData::Dice(player.clone()), &roll);
@@ -483,6 +473,9 @@ impl Farkle {
     fn pass_turn(env: &Env, from: Address, to: Address) {
         let store = env.storage().temporary();
 
+        // We reset instead of remove() to work around the RPC bug that fails
+        // simulation when removing a non-existent key.
+
         // Reset their per-turn score.
         let mut key = UserData::TurnScore(from.clone());
         let zero: u32 = 0;
@@ -531,11 +524,11 @@ impl Farkle {
         if store.has(&key) {
             store.remove(&key);
         }
-        key = UserData::Dice(player.clone());
+        key = UserData::Dice(player);
         if store.has(&key) {
             store.remove(&key);
         }
-        key = UserData::Dice(opp.clone());
+        key = UserData::Dice(opp);
         if store.has(&key) {
             store.remove(&key);
         }
@@ -543,15 +536,15 @@ impl Farkle {
         rv
     }
 
-    fn hold_balance(env: &Env, player: Address) {
+    fn hold_balance(env: &Env, player: &Address) {
         let mut balance: i128 = Self::balance(&env, player.clone());
         if balance < COST_TO_PLAY {
             panic_with_error!(env, Error::TooPoor); // too poor to play
         }
-        balance -= COST_TO_PLAY;
+        balance -= COST_TO_PLAY; // balance held by contract now
 
         let store = env.storage().persistent();
-        let user = UserData::Balance(player);
+        let user = UserData::Balance(player.clone());
         store.set(&user, &balance);
     }
 
@@ -591,8 +584,8 @@ impl Farkle {
         let best: Vec<u32> = vec![&env, 1, 2, 3, 4, 5, 6];
         let mut mid: Vec<u32> = best.clone();
         let mut low: Vec<u32> = best.clone();
-        mid.pop_front();
-        low.pop_back();
+        mid.pop_front(); // 2-6
+        low.pop_back(); // 1-5
 
         if Self::vecs_match(&indiv, &best) {
             score = 1500;
@@ -650,6 +643,7 @@ impl Farkle {
         }
     }
 
+    // Apparently this (a =?= b, that is) isn't available natively?
     fn vecs_match(a: &Vec<u32>, b: &Vec<u32>) -> bool {
         a.len() == b.len() && a.iter().zip(b).all(|(ia, ib)| ia == ib)
     }
@@ -662,16 +656,11 @@ impl Farkle {
      *
      * Returns the address corresponding to the first player.
      */
-    fn emit_match(env: &Env, a: Address, b: Address, a_first: bool) -> Address {
+    fn emit_match(env: &Env, a: &Address, b: &Address, a_first: bool) -> Address {
         let first_player = if a_first { a.clone() } else { b.clone() };
 
         env.events().publish(
-            vec![
-                &env,
-                "match".into_val(env),
-                a.clone().to_val(),
-                b.clone().to_val(),
-            ],
+            vec![&env, "match".into_val(env), a.to_val(), b.to_val()],
             first_player.clone(),
         );
 
@@ -694,21 +683,14 @@ impl Farkle {
 
     fn emit_reroll(env: &Env, player: &Address, dice: &Vec<u32>, score: u32, stop: bool) {
         env.events().publish(
-            vec![&env, "reroll".into_val(env), player.clone().to_val()],
-            vec![
-                &env,
-                dice.clone().to_val(),
-                score.into(),
-                stop.into_val(env),
-            ],
+            vec![&env, "reroll".into_val(env), player.to_val()],
+            vec![&env, dice.to_val(), score.into(), stop.into_val(env)],
         );
     }
 
     fn emit_win(env: &Env, winner: &Address, score: u32) {
-        env.events().publish(
-            vec![&env, "win".into_val(env), winner.clone().to_val()],
-            score,
-        );
+        env.events()
+            .publish(vec![&env, "win".into_val(env), winner.to_val()], score);
     }
 }
 
