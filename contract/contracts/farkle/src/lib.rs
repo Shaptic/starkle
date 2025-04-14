@@ -577,7 +577,7 @@ impl Farkle {
         //
         // 1 2 3 4 5 - 500 points
         // 2 3 4 5 6 - 750 points
-        // 1 2 3 4 5 6 - 1000 points
+        // 1 2 3 4 5 6 - 1500 points
 
         // First, group the dice by number.
         let mut groups = Map::new(&env);
