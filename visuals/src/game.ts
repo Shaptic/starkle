@@ -180,7 +180,10 @@ export function scoreDice(dice: number[]): number {
 
     let base = val === 1 ? 1000 : val * 100;
 
-    base += base * (count - 3);
+    // Each add'l die after 3 doubles the value.
+    if (count > 3) {
+      base *= Math.pow(2, count - 3);
+    }
     score += base;
 
     groups.set(val, 0);

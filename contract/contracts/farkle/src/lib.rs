@@ -39,7 +39,7 @@ pub enum Error {
 }
 
 const ONE_XLM: i128 = 10_000_000;
-const COST_TO_PLAY: i128 = 4 * ONE_XLM; // ~$1
+const COST_TO_PLAY: i128 = 10 * ONE_XLM;
 
 #[contractimpl]
 impl Farkle {
@@ -58,7 +58,12 @@ impl Farkle {
 
     /** Returns the current version of the game. */
     pub fn version() -> u32 {
-        4
+        1
+    }
+
+    /** Returns the current wager / cost to play the game. */
+    pub fn wager() -> i128 {
+        COST_TO_PLAY
     }
 
     /** Allows the admin to upgrade the contract to a new Wasm blob. */
@@ -368,11 +373,11 @@ impl Farkle {
                     let t = Self::token(&env);
                     let client = token::Client::new(&env, &t);
 
-                    // The house keeps 1% to cover misc. rent costs in case
+                    // The house keeps 0.5% to cover misc. rent costs in case
                     // entries expire due to bugs in the code or lack of
                     // activity.
                     let mut amount: i128 = 2 * COST_TO_PLAY;
-                    amount -= amount / 100;
+                    amount -= amount / 500;
 
                     let contract = env.current_contract_address();
                     client.transfer(&contract, &player, &amount);
@@ -620,7 +625,12 @@ impl Farkle {
                 base = 1000;
             }
 
-            base += base * (count - 3);
+            // Each add'l die after 3 doubles the value.
+            if count > 3 {
+                let two: u32 = 2;
+                base *= two.pow(count - 3);
+            }
+
             score += base;
             groups.set(i, 0);
         }

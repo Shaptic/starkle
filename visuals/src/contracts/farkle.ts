@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Buffer } from "buffer";
 import { Address } from "@stellar/stellar-sdk";
 import {
@@ -22,7 +21,9 @@ import type {
   Typepoint,
   Duration,
 } from "@stellar/stellar-sdk/contract";
-export * as sdk from "@stellar/stellar-sdk";
+export * from "@stellar/stellar-sdk";
+export * as contract from "@stellar/stellar-sdk/contract";
+export * as rpc from "@stellar/stellar-sdk/rpc";
 
 if (typeof window !== "undefined") {
   //@ts-ignore Buffer exists
@@ -32,7 +33,7 @@ if (typeof window !== "undefined") {
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CDT7GSI7X2JMUYOUKH3ONL32LIWDNOJQYRV4RELKR66XRAQO2HIDCQYT",
+    contractId: "CCXJBV3TWE4UNAF3GGOZVW7CTNAP6SCKQXSYFTO5NP2BG2UD3VSC4IGC",
   },
 } as const;
 
@@ -86,6 +87,27 @@ export interface Client {
      */
     simulate?: boolean;
   }) => Promise<AssembledTransaction<u32>>;
+
+  /**
+   * Construct and simulate a wager transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Returns the current wager / cost to play the game.
+   */
+  wager: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<i128>>;
 
   /**
    * Construct and simulate a upgrade transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -409,6 +431,29 @@ export interface Client {
       simulate?: boolean;
     },
   ) => Promise<AssembledTransaction<null>>;
+
+  /**
+   * Construct and simulate a end_match transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  end_match: (
+    { player, opp }: { player: string; opp: string },
+    options?: {
+      /**
+       * The fee to pay for the transaction. Default: BASE_FEE
+       */
+      fee?: number;
+
+      /**
+       * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+       */
+      timeoutInSeconds?: number;
+
+      /**
+       * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+       */
+      simulate?: boolean;
+    },
+  ) => Promise<AssembledTransaction<boolean>>;
 }
 export class Client extends ContractClient {
   static async deploy<T = Client>(
@@ -435,6 +480,7 @@ export class Client extends ContractClient {
         "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAABwAAAAAAAAANSW52YWxpZEFtb3VudAAAAAAAAAAAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAABAAAAAAAAAA5BbHJlYWR5UGxheWluZwAAAAAAAgAAAAAAAAAHVG9vUG9vcgAAAAADAAAAAAAAAAtOb3RZb3VyVHVybgAAAAAEAAAAAAAAAApXcm9uZ01hdGNoAAAAAAAFAAAAAAAAAApCYWREaWVIb2xkAAAAAAAG",
         "AAAAAAAAAK0qIEluaXRpYWxpemVzIHRoZSBnYW1lLgogICAgICoKICAgICAqICMgQXJndW1lbnRzCiAgICAgKgogICAgICogLSBgYWRtaW5gIC0gVGhlIG93bmVyIG9mIHRoaXMgaW5zdGFuY2Ugb2YgdGhlIGdhbWUuCiAgICAgKiAtIGB0b2tlbmAgLSBUaGUgdG9rZW4gdXNlZCBmb3Igd2FnZXJzIGluIHRoZSBnYW1lLgAAAAAAAA1fX2NvbnN0cnVjdG9yAAAAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAV0b2tlbgAAAAAAABMAAAAA",
         "AAAAAAAAAChSZXR1cm5zIHRoZSBjdXJyZW50IHZlcnNpb24gb2YgdGhlIGdhbWUuAAAAB3ZlcnNpb24AAAAAAAAAAAEAAAAE",
+        "AAAAAAAAADJSZXR1cm5zIHRoZSBjdXJyZW50IHdhZ2VyIC8gY29zdCB0byBwbGF5IHRoZSBnYW1lLgAAAAAABXdhZ2VyAAAAAAAAAAAAAAEAAAAL",
         "AAAAAAAAADxBbGxvd3MgdGhlIGFkbWluIHRvIHVwZ3JhZGUgdGhlIGNvbnRyYWN0IHRvIGEgbmV3IFdhc20gYmxvYi4AAAAHdXBncmFkZQAAAAABAAAAAAAAAA1uZXdfd2FzbV9oYXNoAAAAAAAD7gAAACAAAAAA",
         "AAAAAAAAAQQqIE9mZmVycyBhIHBzZXVkby1zaHV0ZG93biBtZWNoYW5pc20gdGhhdCBkZS1pbml0aWFsaXplcyBldmVyeXRoaW5nLgogICAgICoKICAgICAqIFdlIHNheSAicHNldWRvIiBiZWNhdXNlIHRoZSBjb250cmFjdCBjb250aW51ZXMgdG8gZXhpc3QsIGJ1dCBub25lIG9mIHRoZQogICAgICogbWV0aG9kcyB3aWxsIHdvcmsgYmVzaWRlcyBgd2l0aGRyYXdgLCBhbGxvd2luZyBwbGF5ZXJzIHRvIHB1bGwgb3V0CiAgICAgKiB0aGVpciBjdXJyZW50IGhvbGRpbmdzLgAAAAhzaHV0ZG93bgAAAAAAAAABAAAACw==",
         "AAAAAAAAAERSZXR1cm5zIHRoZSBjdXJyZW50IGJhbGFuY2UgYSBwbGF5ZXIgaG9sZHMgaW4gdGhlIGdhbWUgZm9yIHdhZ2VyaW5nLgAAAAdiYWxhbmNlAAAAAAEAAAAAAAAABnBsYXllcgAAAAAAEwAAAAEAAAAL",
@@ -446,12 +492,14 @@ export class Client extends ContractClient {
         "AAAAAAAAADBSZXR1cm5zIHRoZSB0b2tlbiBhZGRyZXNzIGJlaW5nIHVzZWQgZm9yIHdhZ2Vycy4AAAAFdG9rZW4AAAAAAAAAAAAAAQAAABM=",
         "AAAAAAAAAClQYW5pY3MgaWYgdGhlIGNvbnRyYWN0IGlzbid0IGluaXRpYWxpemVkLgAAAAAAAApjaGVja19pbml0AAAAAAAAAAAAAA==",
         "AAAAAAAAADdCdW1wcyB0aGUgdGltZS10by1saXZlIGZvciBhIG1hdGNoIGJldHdlZW4gdHdvIHBsYXllcnMuAAAAAA5idW1wX21hdGNoX3R0bAAAAAAAAgAAAAAAAAABYQAAAAAAABMAAAAAAAAAAWIAAAAAAAATAAAAAA==",
+        "AAAAAAAAAAAAAAAJZW5kX21hdGNoAAAAAAAAAgAAAAAAAAAGcGxheWVyAAAAAAATAAAAAAAAAANvcHAAAAAAEwAAAAEAAAAB",
       ]),
       options,
     );
   }
   public readonly fromJSON = {
     version: this.txFromJSON<u32>,
+    wager: this.txFromJSON<i128>,
     upgrade: this.txFromJSON<null>,
     shutdown: this.txFromJSON<i128>,
     balance: this.txFromJSON<i128>,
@@ -463,5 +511,6 @@ export class Client extends ContractClient {
     token: this.txFromJSON<string>,
     check_init: this.txFromJSON<null>,
     bump_match_ttl: this.txFromJSON<null>,
+    end_match: this.txFromJSON<boolean>,
   };
 }
