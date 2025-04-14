@@ -616,20 +616,21 @@ impl Farkle {
         for i in best.into_iter() {
             let count = groups.get(i).unwrap_or(0);
             if count < 3 {
+                // nothing to group
                 continue;
             }
 
-            let mut base = i * 100;
-            // 1s are worth more when grouped.
-            if i == 1 {
-                base = 1000;
-            }
+            let mut base = if i == 1 {
+                // 1s are worth more when grouped.
+                1000
+            } else {
+                i * 100
+            };
 
             // Each add'l die after 3 doubles the value.
-            if count > 3 {
-                let two: u32 = 2;
-                base *= two.pow(count - 3);
-            }
+            // (This works for count == 3 because 2^0 = 1)
+            let two: u32 = 2;
+            base *= two.pow(count - 3);
 
             score += base;
             groups.set(i, 0);
@@ -664,39 +665,36 @@ impl Farkle {
     fn emit_match(env: &Env, a: Address, b: Address, a_first: bool) -> Address {
         let first_player = if a_first { a.clone() } else { b.clone() };
 
-        let mut topics = Vec::<Val>::new(&env);
-        topics.push_back("match".into_val(env));
-        topics.push_back(a.clone().to_val());
-        topics.push_back(b.clone().to_val());
-
-        env.events().publish(topics, first_player.clone());
+        env.events().publish(
+            vec![
+                &env,
+                "match".into_val(env),
+                a.clone().to_val(),
+                b.clone().to_val(),
+            ],
+            first_player.clone(),
+        );
 
         first_player
     }
 
     fn emit_roll(env: &Env, player: Address, roll: &Vec<u32>) {
-        let mut topics = Vec::<Val>::new(env);
-        topics.push_back("roll".into_val(env));
-        topics.push_back(player.to_val());
-
-        env.events().publish(topics, roll.clone());
+        env.events().publish(
+            vec![&env, "roll".into_val(env), player.to_val()],
+            roll.clone(),
+        );
     }
 
     fn emit_bust(env: &Env, player: Address, roll: &Vec<u32>) {
-        let mut topics = Vec::<Val>::new(env);
-        topics.push_back("bust".into_val(env));
-        topics.push_back(player.to_val());
-
-        env.events().publish(topics, roll.clone());
+        env.events().publish(
+            vec![&env, "bust".into_val(env), player.to_val()],
+            roll.clone(),
+        );
     }
 
     fn emit_reroll(env: &Env, player: &Address, dice: &Vec<u32>, score: u32, stop: bool) {
-        let mut topics = Vec::<Val>::new(env);
-        topics.push_back("reroll".into_val(env));
-        topics.push_back(player.clone().to_val());
-
         env.events().publish(
-            topics,
+            vec![&env, "reroll".into_val(env), player.clone().to_val()],
             vec![
                 &env,
                 dice.clone().to_val(),
@@ -707,12 +705,8 @@ impl Farkle {
     }
 
     fn emit_win(env: &Env, winner: &Address, score: u32) {
-        let mut topics = Vec::<Val>::new(env);
-        topics.push_back("win".into_val(env));
-        topics.push_back(winner.clone().to_val());
-
         env.events().publish(
-            topics,
+            vec![&env, "win".into_val(env), winner.clone().to_val()],
             score,
         );
     }
