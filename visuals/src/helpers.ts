@@ -1,7 +1,6 @@
 import $ from "jquery";
 
 import { Keypair, xdr } from "@stellar/stellar-sdk";
-import { i128 } from "@stellar/stellar-sdk/contract";
 import { Server } from "@stellar/stellar-sdk/rpc";
 
 import { makeClient } from "./contracts/helpers";

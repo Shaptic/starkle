@@ -1,6 +1,6 @@
-import { Keypair, Networks } from "@stellar/stellar-sdk";
+import { Keypair } from "@stellar/stellar-sdk";
 import { basicNodeSigner } from "@stellar/stellar-sdk/contract";
-import { PASSPHRASE, SERVER_URL } from "./contracts/constants";
+import { PASSPHRASE } from "./contracts/constants";
 
 //
 // Add a wallet interface conforming to https://stellar.org/protocol/sep-43

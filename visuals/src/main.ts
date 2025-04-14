@@ -110,7 +110,7 @@ async function login() {
 if (!window.localStorage.getItem("signedUp")) {
   logout();
 }
-login();
+await login();
 
 const eventer = new Eventing();
 const contract = await makeClient(user!);
