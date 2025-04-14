@@ -93,27 +93,26 @@ def on_disconnect():
 @socketio.on("join")
 def on_join(data):
     L.info(f"Join request: {request.sid}, {data}.")
-
     if not isinstance(data, dict):
         L.warning("Invalid join request.")
-        return
-
-    print(player_queue)
+        return "invalid join"
 
     join = JoinRequest(**data)
     if not join.valid:
         L.warning(f"Invalid data on 'join': {data}")
-        return
+        return "invalid join"
 
+    print(player_queue)
     existing_sid = player_queue.get(join)
     if existing_sid is not None:
         L.warning(f"Player {data} already in queue.")
         player_queue[join] = request.sid
-        return
+        return "in queue"
 
     L.info(f"Player {join} added to queue.")
     player_queue[join] = request.sid
     _check_queue()
+    return "joined"
 
 @socketio.on("auth_response")
 def on_auth_response(data):
@@ -348,6 +347,7 @@ def balance_check(player: str, room: str) -> bool:
     rpc = sdk.SorobanServer(SOROBAN_RPC_URL)
     resp = rpc.simulate_transaction(txn)
     if resp.error:
+        L.warning(f"Simulation failed: {resp.error}")
         socketio.emit("match_error", {
             "error": "Balance check failed.",
             "details": resp.error,
@@ -356,13 +356,18 @@ def balance_check(player: str, room: str) -> bool:
 
     elif len(resp.results) > 0 and resp.results[0].xdr:
         balance = sdk.scval.from_int128(resp.results[0].xdr)
+        L.info(f"{player} balance: {balance}")
         if balance < COST_TO_PLAY:
             socketio.emit("match_error", {
                 "error": "Insufficient funds, please Deposit more."
             }, room=room)
-        return False
+            return False
+        return True
 
-    return True
+    else:
+        L.warning(f"Unknown branch: {resp}")
+
+    return False
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
