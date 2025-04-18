@@ -49,11 +49,10 @@ SOURCE_SEED = sdk.Keypair.from_secret(
 CONTRACT_ID = "CAFWLMYR5JHUOL2EICORMQ475FJGHOMJLI47JITOEK2UGUC7R5PIQJIK"
 ONE_XLM = 10_000_000
 COST_TO_PLAY = 4 * ONE_XLM  # ~$1
-
 BASE_FEE = 100
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path="", static_folder="static/")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # In-memory queue for connected players, unique for public keys but the dict

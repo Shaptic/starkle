@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && rm -rf ../backend/static/* && cp -r dist/* ../backend/static",
     "preview": "vite preview",
-    "fmt": "npx prettier --write ./src"
+    "fmt": "npx prettier --write ./src *.html"
   },
   "devDependencies": {
     "@types/jquery": "^3.5.32",
