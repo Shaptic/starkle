@@ -54599,7 +54599,7 @@ function yc(v, e) {
   return o ? s = new Kl(i, e) : (Ps[u] || (Ps[u] = new Kl(i, e)), s = Ps[u]), n.query && !e.query && (e.query = n.queryKey), s.socket(n.path, e);
 }
 Object.assign(yc, { Manager: Kl, Socket: ay, io: yc, connect: yc });
-let xi = yc("http://localhost:5000", { reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 250, reconnectionDelayMax: 2e3, ackTimeout: 1e3 });
+let xi = yc(window.location.toString(), { reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 250, reconnectionDelayMax: 2e3, ackTimeout: 1e3 });
 function Pc(v, e) {
   const n = Jr("#connectionStatus"), i = Jr("#innerConnectionStatus"), u = () => n.children(".status-icon").attr("id", "").removeClass().addClass("status-icon");
   switch (v) {
