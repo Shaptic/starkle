@@ -1,4 +1,9 @@
+import "./styles/base.css";
+import "./styles/index.css";
+
+import { StrKey } from "@stellar/stellar-sdk";
 import $ from "jquery";
+import { run } from "./main";
 
 // import {
 //   StellarWalletsKit,
@@ -19,18 +24,10 @@ import $ from "jquery";
 $(() => {
   // Auto-redirect if the user has already signed up.
   if (localStorage.getItem("signedUp")) {
-    const username: string = localStorage.getItem("username") ?? "";
-    const walletMethod: string = localStorage.getItem("walletMethod") ?? "";
-    const secretKey: string = localStorage.getItem("secretKey") ?? "";
-
-    // Fill in the hidden POST form values.
-    $("#post_username").val(username);
-    $("#post_method").val(walletMethod);
-    $("#post_secretKey").val(walletMethod === "import" ? secretKey : "");
-
-    // Submit the POST form to redirect without exposing sensitive information.
-    $("#postForm").trigger("submit");
-    return; // Skip the rest of the setup.
+    $("#landingContainer").hide();
+    $(".container").show();
+    run();
+    return;
   }
 
   // When the wallet method selection changes, show/hide the secret key input.
@@ -47,11 +44,16 @@ $(() => {
     e.preventDefault();
 
     // Read input values.
-    const username: string = ($("#username").val() as string).trim();
+    const username: string = ($("#form-username").val() as string).trim();
     const walletMethod: string = $(
       "input[name='walletMethod']:checked",
     ).val() as string;
     const secretKey: string = ($("#secretKey").val() as string).trim();
+
+    if (secretKey && !StrKey.isValidEd25519SecretSeed(secretKey)) {
+      alert("Invalid secret key format!");
+      return;
+    }
 
     // Store values in localStorage.
     localStorage.setItem("signedUp", "true");
@@ -63,12 +65,8 @@ $(() => {
       localStorage.removeItem("secretKey");
     }
 
-    // Fill the hidden POST form with values.
-    $("#post_username").val(username);
-    $("#post_method").val(walletMethod);
-    $("#post_secretKey").val(walletMethod === "import" ? secretKey : "");
-
-    // Submit the hidden POST form.
-    $("#postForm").trigger("submit");
+    $("#landingContainer").hide();
+    $(".container").show();
+    run();
   });
 });

@@ -49,6 +49,7 @@ export class Eventing {
 
     let ll: Api.GetLatestLedgerResponse;
     let result: Api.GetEventsResponse;
+    // @ts-ignore
     this.listener = setInterval(async () => {
       let new_ll = await this.rpc.getLatestLedger();
       if (ll && ll.sequence >= new_ll.sequence) {

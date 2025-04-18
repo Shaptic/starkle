@@ -69,8 +69,7 @@ active_matches: Dict[str, Match] = {}
 @app.route("/")
 def index():
     """Basic index endpoint."""
-    return "Flask WebSocket Server Running"
-
+    return app.send_static_file("index.html")
 
 @socketio.on("connect")
 def on_connect():
@@ -351,7 +350,6 @@ def build_balance(player: str):
 def build_invocation(fn_name: str, args: List[sdk.xdr.sc_val.SCVal], auth=None):
     rpc = sdk.SorobanServer(SOROBAN_RPC_URL)
     src = rpc.load_account(SOURCE_SEED.public_key)
-    addr = sdk.Address(player)
 
     # Build transaction with a Soroban contract invocation operation
     return (

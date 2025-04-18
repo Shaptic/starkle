@@ -6,123 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- If you're using Vite with TypeScript, your script tag may point to a .ts file -->
     <script type="module" src="/src/login.ts"></script>
-    <style>
-      /* Reset & Base */
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      html,
-      body {
-        width: 100%;
-        height: 100%;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background: #fafafa;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .container {
-        width: 90%;
-        max-width: 400px;
-        background: #fff;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        padding: 2rem;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      }
-      h1 {
-        text-align: center;
-        margin-bottom: 1.5rem;
-      }
-      label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: bold;
-      }
-      input[type="text"],
-      input[type="password"] {
-        width: 100%;
-        padding: 0.75rem;
-        font-size: 1rem;
-        margin-bottom: 1rem;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-      }
-
-      /* Use a 3-column grid for the method buttons on larger screens. */
-      .method-buttons {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-      }
-
-      /* Radio buttons are hidden; labels act as the visible buttons. */
-      .method-buttons input[type="radio"] {
-        display: none;
-      }
-      .method-buttons label {
-        text-align: center;
-        padding: 0.5rem;
-        border: 1px solid #007acc;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        font-size: 0.9em;
-        /* Allow text to wrap if it’s too wide */
-        white-space: normal;
-        word-wrap: break-word;
-      }
-      /* When selected, change the button’s background and text color */
-      .method-buttons input[type="radio"]:checked + label {
-        background-color: #007acc;
-        color: #fff;
-      }
-
-      /* Secret key field, hidden by default */
-      #importKeyField {
-        display: none;
-      }
-      /* Submit button */
-      .submit-btn {
-        width: 100%;
-        padding: 0.75rem;
-        font-size: 1rem;
-        background-color: #28a745;
-        border: none;
-        color: #fff;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-      }
-      .submit-btn:hover {
-        background-color: #218838;
-      }
-
-      /* Responsive adjustments */
-      @media (max-width: 768px) {
-        /* On mobile, stack each button in its own row */
-        .method-buttons {
-          grid-template-columns: 1fr;
-        }
-        /* Hide the freighter option entirely on mobile */
-        #methodFreighter,
-        label[for="methodFreighter"] {
-          display: none;
-        }
-      }
-    </style>
+    <script type="module" src="/src/main.ts"></script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   </head>
   <body>
-    <div class="container" id="landingContainer">
+    <div class="loginContainer" id="landingContainer">
       <h1>Starkle</h1>
       <form id="landingForm">
         <label for="username">Username</label>
         <input
           type="text"
-          id="username"
+          id="form-username"
           name="username"
           required
           placeholder="Enter your username"
@@ -171,11 +65,116 @@
       </form>
     </div>
 
-    <!-- Hidden POST form for redirection -->
-    <form id="postForm" method="POST" action="game.html" style="display: none">
-      <input type="hidden" name="username" id="post_username" />
-      <input type="hidden" name="method" id="post_method" />
-      <input type="hidden" name="secretKey" id="post_secretKey" />
-    </form>
+    <div class="container" style="display: none">
+      <!-- Left Sidebar: Account Status and Scoreboard -->
+      <aside class="stats">
+        <!-- Account Status Panel -->
+        <div class="panel account-panel">
+          <h3 id="accountStatusHeader">
+            <span id="username">...</span>'s account
+            <button id="logout" title="Disconnect account">Logout</button>
+          </h3>
+          <div>
+            Account ID: <span id="account-id">(loading...)</span
+            ><button class="refresh btn-tiny">↺</button>
+          </div>
+          <div>Account Balance: <span id="account-balance">0</span> XLM</div>
+          <div>In-Game Balance: <span id="in-game-balance">0</span> XLM</div>
+          <div>Wager: <span id="wager">0</span> XLM</div>
+          <div class="action-buttons">
+            <button
+              class="action-button btn-green deposit"
+              title="Deposit 10 XLM into the contract for wagers"
+            >
+              Deposit
+            </button>
+            <button
+              class="action-button btn-red withdraw"
+              title="Withdraw your funds from the contract"
+            >
+              Withdraw
+            </button>
+          </div>
+          <button class="action-button btn-yellow" id="play">Join Queue</button>
+        </div>
+
+        <!-- Scoreboard Panel -->
+        <div class="panel scoreboard" style="display: none">
+          <div class="scoreboard-row header">
+            <div class="playerA" id="name"></div>
+            <div></div>
+            <div class="playerB" id="opponent-name"></div>
+          </div>
+          <div class="scoreboard-row">
+            <div class="playerA total" id="total-score">0</div>
+            <div class="label">score</div>
+            <div class="playerB total" id="opponent-total-score">0</div>
+          </div>
+          <div class="scoreboard-row">
+            <div class="playerA turn" id="turn-score">0</div>
+            <div class="label">turn</div>
+            <div class="playerB turn" id="opponent-turn-score">0</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Game Area (Center) -->
+      <main class="game-area"></main>
+
+      <!-- Chat Panel (Right) -->
+      <aside class="chat-panel" style="display: none">
+        <h2>Chat</h2>
+        <div class="chat-messages" id="chat-messages">
+          <!-- Chat messages will appear here -->
+        </div>
+        <input
+          type="text"
+          class="chat-input"
+          id="chat-input"
+          placeholder="Type a message..."
+        />
+      </aside>
+    </div>
+
+    <!-- Waiting for Opponent Modal (Full-screen overlay) -->
+    <div id="waitingModal" class="waiting-modal">
+      <div class="waiting-modal-content">
+        <div class="spinner"></div>
+        <p id="wait-status">Waiting for opponent...</p>
+      </div>
+    </div>
+
+    <!-- Dice Panel: Appears at bottom-center of Game Area -->
+    <div id="dicePanel" class="dice-panel">
+      <div class="dice-panel-content">
+        <h2>Select Dice to Hold</h2>
+        <div class="dice-container">
+          <!-- 6 dice will be dynamically inserted here -->
+        </div>
+        <div class="modal-buttons">
+          <button id="holdReroll" class="action-button btn-yellow">
+            Hold + Reroll
+          </button>
+          <button id="holdPass" class="action-button btn-green">
+            Hold + Pass
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Popup element -->
+    <div id="topPopup" class="top-popup">
+      This is your notification! It can be as long as you need; if the text
+      overflows, it will wrap naturally.
+    </div>
+
+    <!-- Place this at the bottom of your body -->
+    <footer class="footer">
+      <span id="connectionStatus">
+        <!-- Initial status: Connecting... -->
+        <span class="status-icon connecting"></span>
+        <span id="innerConnectionStatus">Connecting...</span>
+      </span>
+    </footer>
   </body>
 </html>

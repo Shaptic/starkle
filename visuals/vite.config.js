@@ -1,14 +1,16 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
 
+import topLevelAwait from "vite-plugin-top-level-await";
+
 export default defineConfig({
-  build: {
-    rollupOptions: {
-      // Here, we tell Vite about our two HTML entry points.
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        game: resolve(__dirname, 'game.html'),
-      },
-    },
-  },
+  // base: "/static",
+  plugins: [
+    topLevelAwait({
+      // The export name of top-level await promise for each chunk module
+      promiseExportName: "__tla",
+      // The function to generate import names of top-level await promise in each chunk module
+      promiseImportName: i => `__tla_${i}`
+    })
+  ]
 })
