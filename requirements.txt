@@ -45,6 +45,7 @@ sortedcontainers==2.4.0
 stellar-sdk==12.2.0
 toml==0.10.2
 tomli==2.2.1
+typing_extensions==4.13.2
 urllib3==2.2.3
 websockets==13.1
 Werkzeug==3.1.3
