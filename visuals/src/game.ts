@@ -13,6 +13,7 @@ import {
   SentTransaction,
 } from "@stellar/stellar-sdk/contract";
 import { IWallet } from "./iwallet";
+import { sleep } from "./helpers";
 
 export async function roll(
   w: IWallet,
@@ -102,6 +103,11 @@ export async function yeeter<T>(txn: AssembledTransaction<T>): Promise<any> {
   } catch (e) {
     console.debug("Transaction envelope:", txn.built!.toXDR());
     console.error(e);
+    if (r?.sendTransactionResponse?.status === "TRY_AGAIN_LATER") {
+      await sleep(2500);
+      return yeeter<T>(txn);
+    }
+
     console.log("Returning rejection...");
     return Promise.reject(e);
   } finally {
@@ -136,8 +142,8 @@ export async function yeeter<T>(txn: AssembledTransaction<T>): Promise<any> {
 }
 
 export function scoreDice(dice: number[]): number {
-  const arrEq = (a: number[], b: number[]): boolean => {
-    return a.length === b.length && a.every((x, i) => x === b[i]);
+  const isSubset = (a: number[], b: number[]): boolean => {
+    return a.length >= b.length && b.every((x) => a.includes(x));
   };
 
   // This is ported directly from Farkle::score_turn with add'l convenient
@@ -147,13 +153,13 @@ export function scoreDice(dice: number[]): number {
     groups.set(die, (groups.get(die) ?? 0) + 1);
   });
 
-  const indiv = Array.from(dice.keys());
+  const indiv = Array.from(groups.keys());
   const perf = [1, 2, 3, 4, 5, 6];
   let score = 0;
 
-  if (arrEq(indiv, perf)) {
+  if (isSubset(indiv, perf)) {
     return 1500;
-  } else if (arrEq(indiv, perf.slice(0, -1))) {
+  } else if (isSubset(indiv, perf.slice(0, -1))) {
     score += 500;
 
     groups.forEach((die, count) => {
@@ -161,7 +167,7 @@ export function scoreDice(dice: number[]): number {
         groups.set(die, count - 1);
       }
     });
-  } else if (arrEq(indiv, perf.slice(1))) {
+  } else if (isSubset(indiv, perf.slice(1))) {
     score += 750;
 
     groups.forEach((die, count) => {

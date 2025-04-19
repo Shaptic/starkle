@@ -578,25 +578,22 @@ impl Farkle {
             groups.set(die, groups.get(die).unwrap_or(0) + 1);
         }
 
-        let indiv: Vec<u32> = groups.keys();
         let mut score = 0;
-
+        let indiv: Vec<u32> = groups.keys(); // set of dice
         let best: Vec<u32> = vec![&env, 1, 2, 3, 4, 5, 6];
-        let mut mid: Vec<u32> = best.clone();
-        let mut low: Vec<u32> = best.clone();
-        mid.pop_front(); // 2-6
-        low.pop_back(); // 1-5
+        let mid: Vec<u32> = vec![&env, 2, 3, 4, 5, 6];
+        let low: Vec<u32> = vec![&env, 1, 2, 3, 4, 5];
 
-        if Self::vecs_match(&indiv, &best) {
+        if indiv.len() == 6 {
             score = 1500;
-        } else if Self::vecs_match(&indiv, &low) {
+        } else if Self::vec_contains(&indiv, &low) {
             score += 500;
 
             // Remove the ones we used.
             for i in low.into_iter() {
                 groups.set(i, groups.get(i).unwrap() - 1);
             }
-        } else if Self::vecs_match(&indiv, &mid) {
+        } else if Self::vec_contains(&indiv, &mid) {
             score += 750;
 
             // Remove the ones we used.
@@ -652,9 +649,9 @@ impl Farkle {
         }
     }
 
-    // Apparently this (a =?= b, that is) isn't available natively?
-    fn vecs_match(a: &Vec<u32>, b: &Vec<u32>) -> bool {
-        a.len() == b.len() && a.iter().zip(b).all(|(ia, ib)| ia == ib)
+    /** Checks if W is a subset of V. */
+    fn vec_contains(v: &Vec<u32>, w: &Vec<u32>) -> bool {
+        w.len() >= v.len() && w.iter().all(|x| v.contains(x))
     }
 
     /**

@@ -7,9 +7,6 @@ import {
   Spec as ContractSpec,
 } from "@stellar/stellar-sdk/contract";
 import type { u32, i128 } from "@stellar/stellar-sdk/contract";
-export * from "@stellar/stellar-sdk";
-export * as contract from "@stellar/stellar-sdk/contract";
-export * as rpc from "@stellar/stellar-sdk/rpc";
 
 if (typeof window !== "undefined") {
   //@ts-ignore Buffer exists
@@ -38,17 +35,11 @@ export type AdminData =
 
 export const Errors = {
   0: { message: "InvalidAmount" },
-
   1: { message: "NotInitialized" },
-
   2: { message: "AlreadyPlaying" },
-
   3: { message: "TooPoor" },
-
   4: { message: "NotYourTurn" },
-
   5: { message: "WrongMatch" },
-
   6: { message: "BadDieHold" },
 };
 
