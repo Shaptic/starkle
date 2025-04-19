@@ -1,3 +1,4 @@
+import os
 import time
 
 from typing import *
@@ -43,9 +44,7 @@ L = log.prepare_log(__name__)
 HORIZON_URL = "https://horizon-testnet.stellar.org"
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 NETWORK_PASSPHRASE = sdk.Network.TESTNET_NETWORK_PASSPHRASE
-SOURCE_SEED = sdk.Keypair.from_secret(
-    "SA2N744UAZOBBGHQP7GGZ56BODFGD5AV4CTK36DTJEOYM3RR2ZBLTGMT"
-)
+SOURCE_SEED = sdk.Keypair.from_secret(os.getenv("SOURCE_SECRET", ""))
 CONTRACT_ID = "CAFWLMYR5JHUOL2EICORMQ475FJGHOMJLI47JITOEK2UGUC7R5PIQJIK"
 ONE_XLM = 10_000_000
 COST_TO_PLAY = 4 * ONE_XLM  # ~$1
@@ -206,16 +205,15 @@ def _check_queue():
 
         try:
             resp = rpc.simulate_transaction(txn)
-            if resp.error:
+            if resp.error or len(resp.results) != 1:
                 L.warning(f"Simulation failed: {resp.error}")
                 socketio.emit(
                     "match_error",
                     {"error": resp.error},
                     room=[room1, room2],
                 )
-
-            print(resp.results)
-            print(resp.results[0].auth)
+            else:
+                print(resp.results[0].auth)
 
         except sdk.exceptions.SorobanRpcErrorResponse as e:
             L.warning(f"Simulation failed: {e}", exc_info=True)

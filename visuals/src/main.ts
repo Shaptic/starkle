@@ -17,13 +17,15 @@ import { SERVER_URL, ONE_XLM, PASSPHRASE } from "./contracts/constants";
 import { BustEvent, HoldEvent, RollEvent, WinEvent } from "./contracts/events";
 import { Eventing } from "./eventing";
 import { getAccountBalance, getGameBalance, sleep } from "./helpers";
-import { dice2words, roll, yeeter } from "./game";
+import { dice2words, roll, scoreDice, yeeter } from "./game";
 import { socket } from "./socket";
 import {
   showPopup,
   showTopPopup,
   modalCancellable,
   modalFailure,
+  modalSuccess,
+  modalSpin,
 } from "./popups";
 
 (globalThis as any).Buffer = (window as any).Buffer = BufferPolyfill;
@@ -57,8 +59,7 @@ export async function run() {
         break;
 
       case "generate":
-        $("#waitingModal").css("display", "flex");
-        $("#wait-status").text(`Generating account w/ play money...`);
+        modalSpin(`Generating account w/ play money...`);
 
         const s = new Server(SERVER_URL);
 
@@ -66,10 +67,9 @@ export async function run() {
         userPk = Keypair.random();
         await s.requestAirdrop(userPk.publicKey());
 
-        $("#wait-status").text(
+        modalSuccess(
           `Account ${userPk.publicKey().substring(0, 6)}... funded!`,
         );
-        modalCancellable();
 
         // Save it so we don't refund on a refresh.
         window.localStorage.setItem("secretKey", userPk.secret());
@@ -245,7 +245,7 @@ export async function run() {
   }
 
   async function handleMatchError(event: any) {
-    $("#play").attr("disabled");
+    $("#play").show();
     modalFailure(event.error ?? JSON.stringify(event));
   }
 
@@ -258,7 +258,7 @@ export async function run() {
 
     $("#wait-status").text("Joined!");
     $("#waitingModal").hide();
-    $("#play").attr("disabled", "disabled");
+    $("#play").hide();
     $(".scoreboard").show();
     $(".chat-panel").show();
 
@@ -303,8 +303,7 @@ export async function run() {
         },
         (msg: any) => {
           console.log("Ack:", msg);
-          $("#wait-status").text("Waiting for opponent...");
-          $("#waitingModal").css("display", "flex");
+          modalSpin("Waiting for opponent...");
         },
       );
     }
@@ -316,8 +315,7 @@ export async function run() {
   }
 
   async function onDepositBtn() {
-    $("#wait-status").text("Depositing 20 XLM...");
-    $("#waitingModal").css("display", "flex");
+    modalSpin("Depositing 20 XLM...");
     console.debug("Depositing 20 XLM into the contract...");
 
     return yeeter(
@@ -334,7 +332,7 @@ export async function run() {
         }),
     ).then(
       () => {
-        $("#waitingModal").hide();
+        modalSuccess("Funds deposited.");
         getBalances();
       },
       (err: any) => {
@@ -344,8 +342,7 @@ export async function run() {
   }
 
   async function onWithdrawBtn() {
-    $("#wait-status").text("Withdrawing funds...");
-    $("#waitingModal").css("display", "flex");
+    modalSpin("Withdrawing funds...");
     console.debug("Withdrawing all XLM from the contract...");
 
     return yeeter(
@@ -361,7 +358,7 @@ export async function run() {
         }),
     ).then(
       () => {
-        $("#waitingModal").hide();
+        modalSuccess("Funds withdrawn.");
         getBalances();
       },
       (err: any) => {
@@ -378,8 +375,7 @@ export async function run() {
     save?: number[],
     stop?: boolean,
   ): Promise<number[]> {
-    $("#wait-status").text(message ?? "Building roll transaction...");
-    $("#waitingModal").css("display", "flex");
+    modalSpin(message ?? "Building roll transaction...");
     console.debug(
       `Rolling against ${opponent}, saving ${save} and stop: ${stop}`,
     );
@@ -405,7 +401,6 @@ export async function run() {
         return parseInt($(this).text());
       })
       .toArray();
-
     // and their respective indices
     const sel: number[] = $(".die.active")
       .map(function () {
@@ -413,7 +408,25 @@ export async function run() {
       })
       .toArray();
 
-    let msg: string = "Building roll transaction to save ";
+    const score = scoreDice(dice);
+    console.log(`Roll ${dice} scored ${score}.`);
+    if (score === 0) {
+      modalFailure(
+        `Invalid dice hold! You must only keep scoring dice.`,
+        () => {
+          renderDiceChoice(
+            $(".die")
+              .map(function () {
+                return parseInt($(this).text());
+              })
+              .toArray(),
+          );
+        },
+      );
+      return;
+    }
+
+    let msg: string = `Building roll transaction to save ${dice2words(dice)} for ${score} points `;
 
     if (!stop) {
       let rollCount = $(".die").length - sel.length;
@@ -422,9 +435,9 @@ export async function run() {
       }
       const rollExpr = rollCount === 1 ? "die" : "dice";
 
-      msg += `${dice2words(dice)} and re-roll ${rollCount} ${rollExpr}...`;
+      msg += `and re-roll ${rollCount} ${rollExpr}...`;
     } else {
-      msg += `${dice2words(dice)} and pass...`;
+      msg += `and pass...`;
     }
 
     try {
@@ -504,9 +517,12 @@ export async function run() {
   async function onBust(event: Event) {
     const data = (event as CustomEvent).detail as BustEvent;
 
-    await diceBox.roll(renderRoll(data.dice));
-
     const weBust = data.player === userPk.publicKey();
+    if (!weBust) {
+      // otherwise we rendered in onRoll
+      await diceBox.roll(renderRoll(data.dice));
+    }
+
     const player = weBust ? "You" : "Opponent";
     showTopPopup(`${player} busted with ${dice2words(data.dice)}!`);
     let prefix = !weBust ? "opponent-" : "";
@@ -526,24 +542,24 @@ export async function run() {
     const data = (event as CustomEvent).detail as WinEvent;
     diceBox.clearDice();
 
-    if (data.player === userPk.publicKey()) {
-      $("#wait-status").text(
-        `You won with ${data.score} points! Winnings have been transferred to your account.`,
-      );
-    } else {
-      $("#wait-status").text(
-        `You lost :( Your opponent finished with ${data.score} points.`,
-      );
-    }
-
-    modalCancellable(() => {
+    const onClose = () => {
       getBalances();
-
-      $("#waitingModal").css("display", "flex");
       $(".scoreboard").fadeOut();
       $(".chat-panel").fadeOut();
-      $("#play").attr("disabled");
-    });
+      $("#play").show();
+    };
+
+    if (data.player === userPk.publicKey()) {
+      modalSuccess(
+        `You won with ${data.score} points! Winnings have been transferred to your account.`,
+        onClose,
+      );
+    } else {
+      modalFailure(
+        `You lost :( Your opponent finished with ${data.score} points.`,
+        onClose,
+      );
+    }
   }
 
   function renderRoll(roll: number[]): string {

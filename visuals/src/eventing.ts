@@ -73,7 +73,6 @@ export class Eventing {
 
       result.events.forEach((event) => {
         const e = convertEvent(event.topic, event.value);
-        console.debug("Parsed RPC event:", e);
 
         // This invokes the event listener created in the constructor, which
         // will then disperse the generic FarkleEvent to the appropriate

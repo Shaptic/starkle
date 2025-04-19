@@ -136,24 +136,24 @@ export async function yeeter<T>(txn: AssembledTransaction<T>): Promise<any> {
 }
 
 export function scoreDice(dice: number[]): number {
+  const arrEq = (a: number[], b: number[]): boolean => {
+    return a.length === b.length && a.every((x, i) => x === b[i]);
+  };
+
   // This is ported directly from Farkle::score_turn with add'l convenient
   // non-smart-contract-isms.
   const groups = new Map<number, number>();
   dice.forEach((die) => {
     groups.set(die, (groups.get(die) ?? 0) + 1);
   });
+
   const indiv = Array.from(dice.keys());
-
-  const arrEq = (a: number[], b: number[]): boolean => {
-    return a.length === b.length && a.every((x, i) => x === b[i]);
-  };
-
+  const perf = [1, 2, 3, 4, 5, 6];
   let score = 0;
 
-  if (arrEq(indiv, [1, 2, 3, 4, 5, 6])) {
-    score = 1500;
-    return score;
-  } else if (arrEq(indiv, [1, 2, 3, 4, 5])) {
+  if (arrEq(indiv, perf)) {
+    return 1500;
+  } else if (arrEq(indiv, perf.slice(0, -1))) {
     score += 500;
 
     groups.forEach((die, count) => {
@@ -161,7 +161,7 @@ export function scoreDice(dice: number[]): number {
         groups.set(die, count - 1);
       }
     });
-  } else if (arrEq(indiv, [2, 3, 4, 5, 6])) {
+  } else if (arrEq(indiv, perf.slice(1))) {
     score += 750;
 
     groups.forEach((die, count) => {
@@ -171,7 +171,7 @@ export function scoreDice(dice: number[]): number {
     });
   }
 
-  [1, 2, 3, 4, 5, 6].forEach((val) => {
+  perf.forEach((val) => {
     let count = Math.max(0, groups.get(val) ?? 0);
     if (count < 3) {
       // irrelevant
@@ -193,6 +193,12 @@ export function scoreDice(dice: number[]): number {
   score += 100 * (groups.get(1) ?? 0);
   score += 50 * (groups.get(5) ?? 0);
 
+  groups.set(1, 0);
+  groups.set(5, 0);
+
+  if (Array.from(groups.values()).some((count) => count > 0)) {
+    return 0;
+  }
   return score;
 }
 

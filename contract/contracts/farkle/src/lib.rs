@@ -633,6 +633,15 @@ impl Farkle {
         score += 100 * groups.get(1).unwrap_or(0);
         score += 50 * groups.get(5).unwrap_or(0);
 
+        groups.set(1, 0);
+        groups.set(5, 0);
+
+        // If the groups aren't completely empty, this is a bad die hold:
+        // players CANNOT hold dice besides scoring ones.
+        if groups.iter().any(|(_val, count)| { count > 0 }) {
+            panic_with_error!(&env, Error::BadDieHold);
+        }
+
         score
     }
 

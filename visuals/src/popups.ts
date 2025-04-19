@@ -8,10 +8,7 @@ export function modalCancellable(action?: CallableFunction) {
       .addClass("close-button")
       .on("click", () => {
         // Put the spinner back and remove the close button.
-        modalContent
-          .children(".error-icon")
-          .removeClass("error-icon")
-          .addClass("spinner");
+        modalContent.children("div").removeClass().addClass("spinner");
         modalRemoveBtn();
         $("#wait-status").text("");
         $("#waitingModal").hide();
@@ -25,14 +22,29 @@ export function modalRemoveBtn() {
   $(".waiting-modal-content button").remove();
 }
 
-export function modalFailure(text: string) {
-  const modalContent = $(".waiting-modal-content");
+export function modalFailure(text: string, fn?: CallableFunction) {
+  modalShow(text, "error-icon");
+  modalCancellable(fn);
+}
+
+export function modalSuccess(text: string, fn?: CallableFunction) {
+  modalShow(text, "check-icon").html("&#10003;");
+  modalCancellable(fn);
+}
+
+export function modalSpin(text: string, fn?: CallableFunction) {
+  modalShow(text, "spinner");
+  if (fn) {
+    modalCancellable(fn);
+  }
+}
+
+function modalShow(text: string, cls: string) {
+  $("#waitingModal").css("display", "flex");
   $("#wait-status").text(text);
-  modalContent
-    .children(".spinner")
-    .removeClass("spinner")
-    .addClass("error-icon");
-  modalCancellable();
+
+  const modalContent = $(".waiting-modal-content");
+  return modalContent.children("div").removeClass().addClass(cls).html("");
 }
 
 /**
@@ -47,7 +59,6 @@ export function showPopup(
   color: string = "#eee",
   duration: number = 3000,
 ) {
-  debugger;
   // Try to reuse an existing popup element
   let popup = $("#popup");
   if (popup.length === 0) {

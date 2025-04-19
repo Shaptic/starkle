@@ -225,16 +225,9 @@
   animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
 }
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
 
 /* 1. Error Icon (Pretty X) */
+.check-icon,
 .error-icon {
   display: inline-block;
   width: 50px; /* Adjust size as needed */
@@ -257,6 +250,13 @@
 }
 .error-icon::after {
   transform: translateY(-50%) rotate(-45deg);
+}
+/* 1. Success Icon (Check Mark) */
+.check-icon {
+  font-size: 50px; /* size of the checkmark */
+  color: #28a745; /* your pleasant green */
+  display: block;
+  margin: 0 auto 1rem; /* center it and add space below */
 }
 
 /* 2. Small Close Button inside .waiting-modal-content */

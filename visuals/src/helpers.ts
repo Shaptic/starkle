@@ -57,7 +57,9 @@ export async function getGameBalance(w: IWallet): Promise<{
 
   const txn = await contract.balance({ player: address });
   let b: number | bigint;
-  if (txn.result <= Number.MAX_SAFE_INTEGER) {
+  if (txn.result === -1n) {
+    b = 0;
+  } else if (txn.result <= Number.MAX_SAFE_INTEGER) {
     b = Number(txn.result) / Number(ONE_XLM);
   } else {
     b = txn.result / ONE_XLM;

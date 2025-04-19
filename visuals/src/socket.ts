@@ -2,7 +2,7 @@ import $ from "jquery";
 import { io, Socket } from "socket.io-client";
 
 // Create a new WebSocket connection
-export let socket: Socket = io(window.location.toString(), {
+export let socket: Socket = io("localhost:5000", {
   reconnection: true,
   reconnectionAttempts: 10,
   reconnectionDelay: 250,
