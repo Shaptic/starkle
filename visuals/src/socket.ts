@@ -1,8 +1,9 @@
 import $ from "jquery";
 import { io, Socket } from "socket.io-client";
+import { WS_ADDR } from "./contracts/constants";
 
 // Create a new WebSocket connection
-export let socket: Socket = io("localhost:5000", {
+export let socket: Socket = io(WS_ADDR ?? window.location.toString(), {
   reconnection: true,
   reconnectionAttempts: 10,
   reconnectionDelay: 250,
