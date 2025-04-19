@@ -59,14 +59,16 @@ export async function run() {
         break;
 
       case "generate":
-        modalSpin(`Generating account w/ play money...`);
-
         const s = new Server(SERVER_URL);
 
-        uname = window.localStorage.getItem("username")!;
         userPk = Keypair.random();
-        await s.requestAirdrop(userPk.publicKey());
-
+        modalSpin(`Generating account w/ play money...`);
+        try {
+          await s.requestAirdrop(userPk.publicKey());
+        } catch (e: any) {
+          alert(`Generating account failed: ${e.message}`);
+          logout();
+        }
         modalSuccess(
           `Account ${userPk.publicKey().substring(0, 6)}... funded!`,
         );
@@ -75,6 +77,7 @@ export async function run() {
         window.localStorage.setItem("secretKey", userPk.secret());
         window.localStorage.setItem("walletMethod", "import");
 
+        uname = window.localStorage.getItem("username")!;
         user = makeKeypairWallet(userPk);
         break;
 
@@ -93,7 +96,9 @@ export async function run() {
         const { network, networkPassphrase } = await Freighter.getNetwork();
         if (networkPassphrase != PASSPHRASE) {
           console.error(network, networkPassphrase);
-          alert("Account is on the wrong network! Use testnet pls.");
+          alert(
+            "Account is on the wrong network! Please switch to a testnet account.",
+          );
           logout();
         }
 
@@ -130,7 +135,6 @@ export async function run() {
 
   async function main() {
     $("#username").text(uname!);
-
     $("#account-id")
       .text(`${userPk.publicKey().substring(0, 8)}...`)
       .attr("title", `${userPk.publicKey()} (click to copy)`)
@@ -138,8 +142,8 @@ export async function run() {
         navigator.clipboard.writeText(userPk.publicKey());
       });
 
-    diceBox.initialize();
     getBalances();
+    diceBox.initialize();
     contract.wager().then((txn) => {
       $("#wager").text((txn.result / ONE_XLM).toString());
     });
@@ -150,10 +154,7 @@ export async function run() {
 
     // When the play button is clicked, show the modal popup
     $("#play").on("click", onPlayBtn);
-    $("#logout").on("click", () => {
-      window.localStorage.clear();
-      window.location.href = "/";
-    });
+    $("#logout").on("click", () => logout());
 
     // In-game action buttons
     $("#holdReroll").on("click", () => onDiceTurnBtn(false));
@@ -195,30 +196,24 @@ export async function run() {
     return authorizeEntry(
       entry,
       async (payload: xdr.HashIdPreimage) => {
-        console.log("Signing payload:", payload.toXDR("base64"));
-        let error;
-        const { signedAuthEntry, signerAddress } = await user.signAuthEntry(
-          payload.toXDR("base64"),
-          {
+        console.debug("Signing payload:", payload.toXDR("base64"));
+
+        // @ts-ignore
+        const { signedAuthEntry, signerAddress, error } =
+          await user.signAuthEntry(payload.toXDR("base64"), {
             address: userPk.publicKey(),
             networkPassphrase: PASSPHRASE,
-          },
-        );
-        console.log("Auth result:", signedAuthEntry, signerAddress);
-
+          });
         if (!signedAuthEntry || error) {
           throw error;
         }
 
         // Massage wallet API into an SDK's SigningCallback
-
-        let signature: BufferPolyfill;
-        if (typeof signedAuthEntry === "string") {
-          // BUG: stellar-base expects an array rather than a base64 string
-          signature = BufferPolyfill.from(signedAuthEntry, "base64");
-        } else {
-          signature = signedAuthEntry;
-        }
+        let signature: BufferPolyfill =
+        typeof signedAuthEntry === "string"
+            // BUG: stellar-base expects an array rather than a base64 string
+            ? BufferPolyfill.from(signedAuthEntry, "base64")
+            : signedAuthEntry;
 
         return {
           signature,
@@ -236,17 +231,17 @@ export async function run() {
         });
       },
       (reason) => {
-        $("#wait-status").text(
-          `Authorization failed: ${reason?.message ?? JSON.stringify(reason)}`,
-        );
-        setTimeout(() => $("#waitingModal").hide(), 2000);
+        modalFailure(`Authorization failed: ${reason?.message ?? JSON.stringify(reason)}`);
       },
     );
   }
 
   async function handleMatchError(event: any) {
-    $("#play").show();
-    modalFailure(event.error ?? JSON.stringify(event));
+    modalFailure(event.error ?? JSON.stringify(event), () => {
+      $("#play").show();
+      socket.disconnect();
+      socket.connect();
+    });
   }
 
   async function handleMatchStart(event: {
@@ -263,31 +258,30 @@ export async function run() {
     $(".chat-panel").show();
 
     const [playerA, playerB] = (event.match_id as string).split("|");
-
-    const pk = userPk.publicKey();
-    opponent = playerA === pk ? playerB : playerA;
     const them = event.users.filter((x) => x !== uname)[0];
+    const pk = userPk.publicKey();
+
+    opponent = playerA === pk ? playerB : playerA;
+    eventer.listen([playerA, playerB]);
 
     $("#name").text(uname).attr("title", pk);
     $("#opponent-name").text(them).attr("title", opponent);
 
-    eventer.listen([playerA, playerB]);
+    if (event.first_player !== pk) {
+      return;
+    }
 
-    if (event.first_player === pk) {
-      let attempts = 0;
-      while (attempts++ < 5) {
-        try {
-          const rollResult = await safeRoll(
-            user,
-            opponent,
-            "Building first roll transaction...",
-          );
-          await diceBox.roll(renderRoll(rollResult));
-          break;
-        } catch (err: any) {
-          console.error(err);
-        }
-      }
+    try {
+      const rollResult = await safeRoll(
+        user,
+        opponent,
+        "Building first roll transaction...",
+      );
+      await diceBox.roll(renderRoll(rollResult));
+    } catch (err: any) {
+      modalFailure(err.toString(), () => {
+        handleMatchStart(event);
+      });
     }
   }
 
