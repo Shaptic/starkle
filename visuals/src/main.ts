@@ -1,4 +1,5 @@
 import "./styles/style.css";
+import "./styles/dice.css";
 
 import $ from "jquery";
 import { Buffer as BufferPolyfill } from "buffer/";
@@ -210,9 +211,9 @@ export async function run() {
 
         // Massage wallet API into an SDK's SigningCallback
         let signature: BufferPolyfill =
-        typeof signedAuthEntry === "string"
-            // BUG: stellar-base expects an array rather than a base64 string
-            ? BufferPolyfill.from(signedAuthEntry, "base64")
+          typeof signedAuthEntry === "string"
+            ? // BUG: stellar-base expects an array rather than a base64 string
+              BufferPolyfill.from(signedAuthEntry, "base64")
             : signedAuthEntry;
 
         return {
@@ -231,7 +232,9 @@ export async function run() {
         });
       },
       (reason) => {
-        modalFailure(`Authorization failed: ${reason?.message ?? JSON.stringify(reason)}`);
+        modalFailure(
+          `Authorization failed: ${reason?.message ?? JSON.stringify(reason)}`,
+        );
       },
     );
   }
@@ -392,7 +395,7 @@ export async function run() {
     // The actual values
     const dice: number[] = $(".die.active")
       .map(function () {
-        return parseInt($(this).text());
+        return parseInt($(this).data("value"));
       })
       .toArray();
     // and their respective indices
@@ -411,7 +414,7 @@ export async function run() {
           renderDiceChoice(
             $(".die")
               .map(function () {
-                return parseInt($(this).text());
+                return parseInt($(this).data("value"));
               })
               .toArray(),
           );
@@ -505,6 +508,14 @@ export async function run() {
       const score = $(`#${prefix}total-score`);
       score.text(parseInt(score.text()) + turnScore + data.score);
       e.text("0");
+
+      // Kick off a call to a real score lookup, just in case.
+      contract
+        .score({ player: data.player })
+        .then((txn) => txn.simulate())
+        .then((txn) => {
+          score.text(txn.result.toString());
+        });
     }
   }
 
@@ -570,10 +581,12 @@ export async function run() {
     dice.forEach((value, index) => {
       const dieEl = $("<div>");
       dieEl
-        .addClass("die")
-        .text(value)
+        .addClass(["die", `p${value}`])
+        .data("value", value)
         .data("index", index)
-        .on("click", () => dieEl.toggleClass("active"));
+        .on("click", () => dieEl.toggleClass("active"))
+        // Add pips to match the die
+        .append(new Array(value).fill(0).map(() => $("<div>").addClass("pip")));
       diceContainer.append(dieEl);
     });
 

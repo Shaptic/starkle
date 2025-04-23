@@ -2,6 +2,7 @@ import {
   Address,
   BASE_FEE,
   nativeToScVal,
+  rpc,
   scValToNative,
   xdr,
 } from "@stellar/stellar-sdk";
@@ -100,11 +101,11 @@ export async function yeeter<T>(txn: AssembledTransaction<T>): Promise<any> {
   let r: SentTransaction<T> | null = null;
   try {
     r = await txn.signAndSend();
-  } catch (e) {
+  } catch (e: any) {
     console.debug("Transaction envelope:", txn.built!.toXDR());
     console.error(e);
-    if (r?.sendTransactionResponse?.status === "TRY_AGAIN_LATER") {
-      await sleep(2500);
+    if (e.toString().includes("TRY_AGAIN_LATER")) {
+      await sleep(5000); // around ledger close time
       return yeeter<T>(txn);
     }
 
@@ -162,7 +163,7 @@ export function scoreDice(dice: number[]): number {
   } else if (isSubset(indiv, perf.slice(0, -1))) {
     score += 500;
 
-    groups.forEach((die, count) => {
+    groups.forEach((count, die) => {
       if (die <= 5) {
         groups.set(die, count - 1);
       }
@@ -170,7 +171,7 @@ export function scoreDice(dice: number[]): number {
   } else if (isSubset(indiv, perf.slice(1))) {
     score += 750;
 
-    groups.forEach((die, count) => {
+    groups.forEach((count, die) => {
       if (die >= 2 && die <= 6) {
         groups.set(die, count - 1);
       }

@@ -235,6 +235,11 @@ impl Farkle {
         store.set(&UserData::Match(a.clone()), &b);
         store.set(&UserData::Match(b.clone()), &a);
 
+        // Overwrite any previous dice rolls, in case of bugs.
+        let empty: Vec<u32> = Vec::new(&env);
+        store.set(&UserData::Dice(a.clone()), &empty);
+        store.set(&UserData::Dice(b.clone()), &empty);
+
         // Roll for who goes first.
         let first: u64 = env.prng().gen_range(1..=2);
         if first == 1 {
@@ -342,7 +347,7 @@ impl Farkle {
             }
 
             roll_count = last_roll.len() - saved.len();
-            let roll_score = Self::score_turn(&env, &saved);
+            let roll_score = Self::score_turn(&env, &saved, true);
             if roll_score == 0 && !stop {
                 panic_with_error!(&env, Error::BadDieHold);
             }
@@ -398,7 +403,7 @@ impl Farkle {
         }
 
         // If they bust out immediately, end the turn early.
-        if Self::score_turn(&env, &roll) == 0 {
+        if Self::score_turn(&env, &roll, false) == 0 {
             Self::pass_turn(&env, player.clone(), opp);
             Self::emit_bust(&env, player.clone(), &roll);
         } else {
@@ -548,7 +553,7 @@ impl Farkle {
         store.set(&user, &balance);
     }
 
-    fn score_turn(env: &Env, dice: &Vec<u32>) -> u32 {
+    fn score_turn(env: &Env, dice: &Vec<u32>, enforce: bool) -> u32 {
         // The rules of farkle are as follows:
         //
         // 1 - 100 points
@@ -635,7 +640,7 @@ impl Farkle {
 
         // If the groups aren't completely empty, this is a bad die hold:
         // players CANNOT hold dice besides scoring ones.
-        if groups.iter().any(|(_val, count)| { count > 0 }) {
+        if enforce && groups.iter().any(|(_val, count)| count > 0) {
             panic_with_error!(&env, Error::BadDieHold);
         }
 
