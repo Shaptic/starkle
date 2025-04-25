@@ -9,13 +9,18 @@ pub struct Farkle;
 #[derive(Clone)]
 #[contracttype]
 pub enum UserData {
-    Token,              // Address value
-    Balance(Address),   // i128 value
+    // persistent
+    Balance(Address), // i128 value
+
+    // temporary
     Score(Address),     // u32 value
     TurnScore(Address), // u32 value, the temporary score for the turn
     Dice(Address),      // Vec<u32> value (last dice roll)
     Match(Address),     // Address value, indicating their opponent
     Turn(Address),      // Address value, indicating who can roll
+
+    // temporary, for tracking forfeits
+    LastPlayed(Address), // u32 ledger number
 }
 
 #[derive(Clone)]
@@ -39,7 +44,8 @@ pub enum Error {
 }
 
 const ONE_XLM: i128 = 10_000_000;
-const COST_TO_PLAY: i128 = 10 * ONE_XLM;
+const COST_TO_PLAY: i128 = 3 * ONE_XLM; // ~$1
+const FORFEIT_DURATION: u32 = 180; // ledger count @ ~5s/ea = 15m
 
 #[contractimpl]
 impl Farkle {
@@ -49,10 +55,15 @@ impl Farkle {
      * # Arguments
      *
      * - `admin` - The owner of this instance of the game.
-     * - `token` - The token used for wagers in the game.
      */
-    pub fn __constructor(env: Env, admin: Address, token: Address) {
-        env.storage().instance().set(&AdminData::Token, &token);
+    pub fn __constructor(env: Env, admin: Address) {
+        // Wagers are done purely in XLM; sadly this has to be hardcoded.
+        let xlm = Address::from_str(
+            &env,
+            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        );
+
+        env.storage().instance().set(&AdminData::Token, &xlm); // so we don't re-derive
         env.storage().instance().set(&AdminData::Admin, &admin);
     }
 
@@ -74,35 +85,12 @@ impl Farkle {
         e.deployer().update_current_contract_wasm(new_wasm_hash);
     }
 
-    /**
-     * Offers a pseudo-shutdown mechanism that de-initializes everything.
-     *
-     * We say "pseudo" because the contract continues to exist, but none of the
-     * methods will work besides `withdraw`, allowing players to pull out
-     * their current holdings.
-     */
-    pub fn shutdown(env: Env) -> i128 {
-        let admin: Address = env.storage().instance().get(&AdminData::Admin).unwrap();
-        admin.require_auth();
-
-        // Kill the game.
-        let contract = env.current_contract_address();
-        let client = token::Client::new(&env, &Self::token(&env));
-        let balance = client.balance(&contract);
-        client.transfer(&contract, &admin, &balance);
-
-        env.storage().instance().remove(&AdminData::Admin);
-
-        balance
-    }
-
     /** Returns the current balance a player holds in the game for wagering. */
     pub fn balance(env: &Env, player: Address) -> i128 {
         Self::check_init(&env);
-        let store = env.storage().persistent();
         let user = UserData::Balance(player);
 
-        store.get(&user).unwrap_or(-1)
+        env.storage().persistent().get(&user).unwrap_or(-1)
     }
 
     /**
@@ -117,22 +105,23 @@ impl Farkle {
      *
      * The current balance of the account after this deposit.
      */
-    pub fn deposit(env: Env, to: Address, amount: i128) -> i128 {
-        Self::check_init(&env);
-        to.require_auth();
+    pub fn deposit(env: Env, by: Address, amount: i128) -> i128 {
         if amount <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
+            return 0;
         }
 
+        Self::check_init(&env);
+        by.require_auth();
+
         let store = env.storage().persistent();
-        let user = UserData::Balance(to.clone());
+        let user = UserData::Balance(by.clone());
         let mut balance: i128 = store.get(&user).unwrap_or(0);
 
         // Transfer into the contract for holding.
         let t: Address = Self::token(&env);
         let contract = env.current_contract_address();
         let client = token::Client::new(&env, &t);
-        client.transfer(&to, &contract, &amount);
+        client.transfer(&by, &contract, &amount);
 
         balance += amount;
         store.set(&user, &balance);
@@ -152,11 +141,11 @@ impl Farkle {
      * The amount withdrawn, for reference.
      */
     pub fn withdraw(env: Env, from: Address) -> i128 {
-        from.require_auth();
-
         let t: Address = Self::token(&env);
         let balance = Self::balance(&env, from.clone());
-        if balance >= 0 {
+        if balance > 0 {
+            from.require_auth();
+
             // Transfer to the account.
             let contract = env.current_contract_address();
             let client = token::Client::new(&env, &t);
@@ -240,6 +229,10 @@ impl Farkle {
         store.set(&UserData::Dice(a.clone()), &empty);
         store.set(&UserData::Dice(b.clone()), &empty);
 
+        let seq = env.ledger().sequence();
+        store.set(&UserData::LastPlayed(a.clone()), &seq);
+        store.set(&UserData::LastPlayed(b.clone()), &seq);
+
         // Roll for who goes first.
         let first: u64 = env.prng().gen_range(1..=2);
         if first == 1 {
@@ -251,6 +244,39 @@ impl Farkle {
         }
 
         Self::emit_match(&env, &a, &b, first == 1)
+    }
+
+    pub fn forfeit(env: Env, opponent: Address) -> bool {
+        let store = env.storage().temporary();
+
+        // Who's the opponent playing against?
+        let player = Self::get_opp(&env, opponent.clone());
+
+        // When's the last time the opponent took an action?
+        let last_seq: u32 = store.get(&UserData::LastPlayed(opponent.clone())).unwrap();
+
+        // Is it currently their turn?
+        let playing: Address = store.get(&UserData::Turn(opponent.clone())).unwrap();
+        if playing != opponent {
+            // If it's not the opponent's turn, they aren't stalling.
+            return false;
+        }
+
+        if env.ledger().sequence() - FORFEIT_DURATION < last_seq {
+            // Opponent still has time to make a move.
+            return false;
+        }
+
+        Self::_end_match(&env, opponent, player.clone());
+        let t = Self::token(&env);
+        let payout = Self::get_payout();
+        let client = token::Client::new(&env, &t);
+        let contract = env.current_contract_address();
+        client.transfer(&contract, &player, &payout);
+
+        Self::emit_win(&env, &player, 0);
+
+        true
     }
 
     /**
@@ -334,6 +360,9 @@ impl Farkle {
             // pass+score, or keep a dice combo and re-roll.
             //
 
+            if save.len() > last_roll.len() {
+                panic_with_error!(&env, Error::BadDieHold)
+            }
             if save.len() == 0 && !stop {
                 panic_with_error!(&env, Error::BadDieHold);
             }
@@ -371,15 +400,10 @@ impl Farkle {
                 if score >= 2000 {
                     let t = Self::token(&env);
                     let client = token::Client::new(&env, &t);
-
-                    // The house keeps 0.5% to cover misc. rent costs in case
-                    // entries expire due to bugs in the code or lack of
-                    // activity.
-                    let mut amount: i128 = 2 * COST_TO_PLAY;
-                    amount -= amount / 500;
+                    let payout = Self::get_payout();
 
                     let contract = env.current_contract_address();
-                    client.transfer(&contract, &player, &amount);
+                    client.transfer(&contract, &player, &payout);
 
                     Self::_end_match(&env, player.clone(), opp);
                     Self::emit_win(&env, &player, score);
@@ -435,6 +459,8 @@ impl Farkle {
     pub fn bump_match_ttl(env: &Env, a: Address, b: Address) {
         let tstore = env.storage().temporary();
         let pstore = env.storage().persistent();
+
+        tstore.set(&UserData::LastPlayed(a.clone()), &env.ledger().sequence());
 
         for addr in vec![&env, a, b] {
             let mut key = UserData::Score(addr.clone());
@@ -529,11 +555,19 @@ impl Farkle {
         if store.has(&key) {
             store.remove(&key);
         }
-        key = UserData::Dice(player);
+        key = UserData::Dice(player.clone());
         if store.has(&key) {
             store.remove(&key);
         }
-        key = UserData::Dice(opp);
+        key = UserData::Dice(opp.clone());
+        if store.has(&key) {
+            store.remove(&key);
+        }
+        key = UserData::LastPlayed(player);
+        if store.has(&key) {
+            store.remove(&key);
+        }
+        key = UserData::LastPlayed(opp);
         if store.has(&key) {
             store.remove(&key);
         }
@@ -542,15 +576,27 @@ impl Farkle {
     }
 
     fn hold_balance(env: &Env, player: &Address) {
+        // Pull player balance and hold in contract
         let mut balance: i128 = Self::balance(&env, player.clone());
         if balance < COST_TO_PLAY {
             panic_with_error!(env, Error::TooPoor); // too poor to play
         }
-        balance -= COST_TO_PLAY; // balance held by contract now
+        balance -= COST_TO_PLAY;
+
+        // Transfer the play fee (2%) to the admin.
+        let fee = COST_TO_PLAY * 2 / 100;
+        let admin: Address = env.storage().instance().get(&AdminData::Admin).unwrap();
+        let contract = env.current_contract_address();
+        let client = token::Client::new(&env, &Self::token(&env));
+        client.transfer(&contract, &admin, &fee);
 
         let store = env.storage().persistent();
         let user = UserData::Balance(player.clone());
         store.set(&user, &balance);
+    }
+
+    fn get_payout() -> i128 {
+        COST_TO_PLAY * 2 * 2 / 100 // what both players put in, -2% fee each
     }
 
     fn score_turn(env: &Env, dice: &Vec<u32>, enforce: bool) -> u32 {
@@ -591,14 +637,14 @@ impl Farkle {
 
         if indiv.len() == 6 {
             score = 1500;
-        } else if Self::vec_contains(&indiv, &low) {
+        } else if Self::subset(&indiv, &low) {
             score += 500;
 
             // Remove the ones we used.
             for i in low.into_iter() {
                 groups.set(i, groups.get(i).unwrap() - 1);
             }
-        } else if Self::vec_contains(&indiv, &mid) {
+        } else if Self::subset(&indiv, &mid) {
             score += 750;
 
             // Remove the ones we used.
@@ -654,9 +700,9 @@ impl Farkle {
         }
     }
 
-    /** Checks if W is a subset of V. */
-    fn vec_contains(v: &Vec<u32>, w: &Vec<u32>) -> bool {
-        w.len() >= v.len() && w.iter().all(|x| v.contains(x))
+    /** Checks if `inner` is a subset of `main`. */
+    fn subset(main: &Vec<u32>, inner: &Vec<u32>) -> bool {
+        main.len() >= inner.len() && inner.iter().all(|x| main.contains(x))
     }
 
     /**
