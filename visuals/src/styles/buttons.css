@@ -1,0 +1,96 @@
+/* ---------- global action buttons ---------- */
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+.action-button {
+  color: #fff;
+  font-size: 1em;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.btn-green {
+  background: var(--accent-green);
+}
+.btn-green:hover {
+  background: var(--accent-green--dark);
+}
+.btn-red {
+  background: var(--accent-red);
+}
+.btn-red:hover {
+  background: var(--accent-red--dark);
+}
+.btn-yellow {
+  background: var(--accent-yellow);
+  color: var(--grey-700);
+}
+.btn-yellow:hover {
+  background: var(--accent-yellow--dark);
+}
+
+/* small / icon helpers */
+.btn-tiny {
+  padding: 0;
+  margin-left: 0.3rem;
+  font-size: 1rem;
+}
+.btn-tiny:active {
+  transform: rotate(180deg);
+}
+
+.check-icon,
+.error-icon {
+  display: inline-block;
+  width: 50px;
+  height: 50px;
+  position: relative;
+}
+
+.error-icon::before,
+.error-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: #dc3545;
+  transform-origin: center;
+}
+.error-icon::before {
+  transform: translateY(-50%) rotate(45deg);
+}
+.error-icon::after {
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.check-icon {
+  font-size: 50px;
+  color: #28a745;
+  display: block;
+  margin: 0 auto 1rem;
+}
+
+/* logout */
+#logout {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6em;
+  padding: 0.2em 0.5em;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--brand-blue);
+  transition: color 0.3s;
+}
+#logout:hover {
+  color: var(--brand-blue--dark);
+}

@@ -1,5 +1,15 @@
-import "./styles/base.css";
-import "./styles/index.css";
+import "./styles/variables.css";
+import "./styles/reset.css";
+import "./styles/layout.css";
+import "./styles/sidebar.css";
+import "./styles/game.css";
+import "./styles/chat.css";
+import "./styles/buttons.css";
+import "./styles/dice.css";
+import "./styles/modal.css";
+import "./styles/utilities.css";
+import "./styles/responsive.css";
+import "./styles/login.css";
 
 import { StrKey } from "@stellar/stellar-sdk";
 import $ from "jquery";

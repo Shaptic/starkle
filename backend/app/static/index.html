@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- If you're using Vite with TypeScript, your script tag may point to a .ts file -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <script type="module" crossorigin src="/assets/index-CrW4s1Ys.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Cugd3wpP.css">
+    <script type="module" crossorigin src="/assets/index-aa-aPXtt.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Ce-Qzs1l.css">
   </head>
   <body>
     <div class="loginContainer" id="landingContainer">
@@ -96,6 +96,7 @@
             </button>
           </div>
           <button class="action-button btn-yellow" id="play">Join Queue</button>
+          <button class="action-button btn-yellow" id="rules">Rules</button>
         </div>
 
         <!-- Scoreboard Panel -->
@@ -116,10 +117,30 @@
             <div class="playerB turn" id="opponent-turn-score">0</div>
           </div>
         </div>
+
+        <div class="panel forfeit" style="display: none">
+          Opponent has <span id="forfeitLed">180</span> ledgers (<span
+            id="forfeitSec"
+            >900</span
+          >s) until they forfeit...
+          <button id="refundBtn" disabled>Request Refund</button>
+        </div>
       </aside>
 
       <!-- Game Area (Center) -->
       <main class="game-area"></main>
+      <main class="mobile-game-area">
+        <!-- <div class="dice-panel-content">
+          <div class="dice-container">
+            6 dice will be dynamically inserted here
+          </div>
+        </div> -->
+        <!-- Mobile Dice Roller (shown only on ≤ 768 px screens) -->
+        <div id="mobileRoller" class="dice-roll-container">
+          <div class="dice-container"></div>
+          <!-- dice injected by JS -->
+        </div>
+      </main>
 
       <!-- Chat Panel (Right) -->
       <aside class="chat-panel" style="display: none">
@@ -166,6 +187,82 @@
     <div id="topPopup" class="top-popup">
       This is your notification! It can be as long as you need; if the text
       overflows, it will wrap naturally.
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rulesModal" class="rules-modal">
+      <div class="rules-modal-content">
+        <button class="close-button got-it">&times;</button>
+        <h2>Farkle – Game Rules</h2>
+
+        <h3>Objective</h3>
+        <p>
+          Be the first player to reach <strong>3,000&nbsp;points</strong>.
+          Points are earned by rolling scoring combinations and deciding whether
+          to bank those points or risk rolling again.
+        </p>
+
+        <h3>Turn Flow</h3>
+        <ol>
+          <li>Roll six dice.</li>
+          <li>
+            Select any scoring dice you wish to keep (<em
+              >see “Scoring” below</em
+            >).
+          </li>
+          <li>
+            Decide to <strong>roll again</strong> (with the remaining dice)
+            <em>or</em> <strong>pass</strong> to bank your turn score.
+          </li>
+          <li>
+            If all six dice score, you may pick them all up and roll a “hot
+            dice” (continuing your turn with six dice).
+          </li>
+          <li>
+            If a roll yields <strong>no scoring dice</strong>, you “Farkle” and
+            lose all un-banked points from that turn. The turn passes to your
+            opponent.
+          </li>
+        </ol>
+
+        <h3>Scoring Combinations</h3>
+        <ul>
+          <li><strong>Single&nbsp;1</strong> &nbsp;–&nbsp; 100&nbsp;points</li>
+          <li><strong>Single&nbsp;5</strong> &nbsp;–&nbsp; 50&nbsp;points</li>
+          <li>
+            <strong>Three&nbsp;of&nbsp;a&nbsp;kind</strong> (2–6) &nbsp;–&nbsp;
+            face × 100 (e.g.&nbsp;three 4s = 400)
+          </li>
+          <li>
+            <strong>Three&nbsp;1s</strong> &nbsp;–&nbsp; 1,000&nbsp;points
+          </li>
+          <li>
+            <strong>Each extra die</strong> beyond a triple &nbsp;–&nbsp;
+            doubles that triple's value<br />
+            (<em>four 5s = 1,000 points; five 5s = 2,000&nbsp;points</em>)
+          </li>
+          <li><strong>Straight&nbsp;1-6</strong> &nbsp;–&nbsp; 1,500 points</li>
+          <li><strong>Straight&nbsp;2-6</strong> &nbsp;–&nbsp; 750 points</li>
+          <li><strong>Straight&nbsp;1-5</strong> &nbsp;–&nbsp; 500 points</li>
+        </ul>
+
+        <h3>Wager &amp; Fees</h3>
+        <p>
+          Each player stakes 10 XLM. A 1% fee is taken on entry for maintenance.
+          The remaining pot goes to the winner.
+        </p>
+
+        <h3>Forfeit Timer</h3>
+        <p>
+          You must act within a reasonable amount of time or your opponent can
+          initiate a forfeit request. Failure to roll or pass within the window
+          forfeits the match and you lose your stake.
+        </p>
+
+        <p style="text-align: center; margin-top: 1.5rem">
+          <button class="action-button btn-green got-it">Got&nbsp;it!</button>
+        </p>
+      </div>
     </div>
 
     <!-- Place this at the bottom of your body -->

@@ -1,0 +1,147 @@
+/* ---------- animations / pop-ups / footer ---------- */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fadeInPopup {
+  from {
+    bottom: -100px;
+    opacity: 0;
+  }
+  to {
+    bottom: 50%;
+    opacity: 1;
+  }
+}
+@keyframes fadeOutPopup {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  20%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@keyframes slideInTop {
+  0% {
+    top: -100px;
+    opacity: 0;
+  }
+  20%,
+  80% {
+    top: 20px;
+    opacity: 1;
+  }
+  100% {
+    top: -100px;
+    opacity: 0;
+  }
+}
+
+/* generic popup */
+.popup {
+  position: fixed;
+  left: 50%;
+  bottom: -100px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  opacity: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+.popup.show {
+  animation: fadeInPopup 0.5s ease-out forwards;
+}
+.popup.hide {
+  animation: fadeOutPopup 0.5s ease-out forwards;
+}
+
+/* top notification */
+.top-popup {
+  display: block;
+  position: fixed;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 400px;
+  background: #fff;
+  color: var(--grey-700);
+  padding: 1rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  overflow-wrap: break-word;
+  opacity: 0;
+  z-index: 1000;
+}
+.top-popup.show {
+  animation: slideInTop 3s ease forwards;
+  opacity: 0.9;
+}
+
+/* balance change fly-ups */
+.balance-change {
+  position: absolute;
+  font-size: larger;
+  color: #fff;
+  pointer-events: none;
+  animation: fadeInOut 2.5s ease forwards;
+}
+.balance-change.loss {
+  color: rgba(200, 0, 0, 1);
+}
+.balance-change.win {
+  color: rgba(0, 200, 0, 1);
+}
+
+/* footer / connection */
+.footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #333;
+  color: #fff;
+  font-size: 0.9em;
+  padding: 5px 10px;
+  text-align: left;
+}
+.status-icon {
+  margin-right: 0.5em;
+}
+.status-icon.connected::before {
+  content: "✅";
+}
+.status-icon.disconnected::before {
+  content: "❌";
+  cursor: pointer;
+}
+.status-icon.connecting {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid #fff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  margin-right: 0.5em;
+  animation: spin 1s linear infinite;
+}

@@ -1,0 +1,107 @@
+/* ---------- mobile optimisations ---------- */
+@media only screen and (max-width: 768px) {
+  .container {
+    display: flex;
+    flex-direction: column;
+  }
+  .stats,
+  .game-area,
+  .chat-panel {
+    border: none;
+    box-shadow: none;
+  }
+  .panel {
+    max-width: 768px;
+  }
+  .stats {
+    border-bottom: 1px solid var(--grey-300);
+  }
+  .chat-panel {
+    border-top: 1px solid var(--grey-300);
+  }
+  /* login radio buttons: single column */
+  .method-buttons {
+    grid-template-columns: 1fr;
+  }
+  /* hide freighter on mobile */
+  #methodFreighter,
+  label[for="methodFreighter"] {
+    display: none;
+  }
+}
+
+@media only screen and (max-width: 480px) {
+  .game-area {
+    display: none;
+  }
+  .mobile-game-area {
+    display: block;
+  }
+
+  .mobile-game-area .dice-roll-container {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dice-container .die {
+    flex: 0 0 60px;
+    -webkit-transform: scale(0.5);
+    -moz-transform: scale(0.5);
+    -ms-transform: scale(0.5);
+    transform: scale(0.5);
+    margin: 0;
+  }
+
+  /* Mobile roller wrapper */
+  .dice-roll-container {
+    background: #fff;
+    border: 2px solid var(--grey-300);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: var(--shadow-soft);
+    z-index: 60;
+    display: none; /* hidden until JS shows it */
+  }
+
+  /* Use existing die + dice-container look */
+  .dice-roll-container .dice-container {
+    display: flex;
+    margin: auto;
+    flex-shrink: 0;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .mobile-game-area .dice-roll-container .dice-container {
+    cursor: none;
+  }
+
+  /* Only show on small screens */
+  @media (min-width: 769px) {
+    .dice-roll-container {
+      display: none !important;
+    }
+  }
+}
+@media (min-width: 769px) {
+  .mobile-game-area {
+    display: none;
+  }
+}
+
+/* rules modal tight padding for phone */
+@media (max-width: 600px) {
+  .rules-modal-content {
+    padding: 1.25rem;
+  }
+  .rules-modal-content .close-button {
+    font-size: 28px;
+    top: 6px;
+    right: 8px;
+  }
+  .rules-modal-content .action-button {
+    width: 100%;
+    padding: 0.9rem 0;
+  }
+}

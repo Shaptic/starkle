@@ -2,7 +2,6 @@ import {
   Address,
   BASE_FEE,
   nativeToScVal,
-  rpc,
   scValToNative,
   xdr,
 } from "@stellar/stellar-sdk";

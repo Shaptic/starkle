@@ -1,6 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, log};
-use soroban_sdk::{panic_with_error, token};
+use soroban_sdk::xdr::{Limits, WriteXdr};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, log, Bytes};
+use soroban_sdk::{panic_with_error, token, xdr};
 use soroban_sdk::{vec, Address, BytesN, Env, IntoVal, Map, Vec};
 
 #[contract]
@@ -46,6 +47,7 @@ pub enum Error {
 const ONE_XLM: i128 = 10_000_000;
 const COST_TO_PLAY: i128 = 3 * ONE_XLM; // ~$1
 const FORFEIT_DURATION: u32 = 180; // ledger count @ ~5s/ea = 15m
+const WIN_THRESHOLD: u32 = 3000;
 
 #[contractimpl]
 impl Farkle {
@@ -57,11 +59,13 @@ impl Farkle {
      * - `admin` - The owner of this instance of the game.
      */
     pub fn __constructor(env: Env, admin: Address) {
-        // Wagers are done purely in XLM; sadly this has to be hardcoded.
-        let xlm = Address::from_str(
-            &env,
-            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-        );
+        let xlm = env
+            .deployer()
+            .with_stellar_asset(Bytes::from_slice(
+                &env,
+                &xdr::Asset::Native.to_xdr(Limits::none()).unwrap(),
+            ))
+            .deployed_address();
 
         env.storage().instance().set(&AdminData::Token, &xlm); // so we don't re-derive
         env.storage().instance().set(&AdminData::Admin, &admin);
@@ -193,7 +197,7 @@ impl Farkle {
      *
      * - If either player is already in a game.
      * - If a player doesn't have a sufficient amount deposited to wager a game
-     *   (see `COST_TO_PLAY`, 1k XLM).
+     *   (see `COST_TO_PLAY`).
      */
     pub fn engage(env: Env, a: Address, b: Address) -> Address {
         Self::check_init(&env);
@@ -251,6 +255,7 @@ impl Farkle {
 
         // Who's the opponent playing against?
         let player = Self::get_opp(&env, opponent.clone());
+        player.require_auth(); // make sure the right person initiated this
 
         // When's the last time the opponent took an action?
         let last_seq: u32 = store.get(&UserData::LastPlayed(opponent.clone())).unwrap();
@@ -287,7 +292,7 @@ impl Farkle {
      * rolling again, or setting aside + passing to lock in your turn's score and
      * add it to your accumulated total score.
      *
-     * First to 2000 wins!
+     * First to 3000 wins!
      *
      * # Arguments
      *
@@ -397,7 +402,7 @@ impl Farkle {
 
                 // Did the player win? If so, transfer their winnings and
                 // end the game.
-                if score >= 2000 {
+                if score >= WIN_THRESHOLD {
                     let t = Self::token(&env);
                     let client = token::Client::new(&env, &t);
                     let payout = Self::get_payout();
@@ -583,8 +588,8 @@ impl Farkle {
         }
         balance -= COST_TO_PLAY;
 
-        // Transfer the play fee (2%) to the admin.
-        let fee = COST_TO_PLAY * 2 / 100;
+        // Transfer the play fee (1%) to the admin.
+        let fee = Self::get_fee();
         let admin: Address = env.storage().instance().get(&AdminData::Admin).unwrap();
         let contract = env.current_contract_address();
         let client = token::Client::new(&env, &Self::token(&env));
@@ -595,8 +600,12 @@ impl Farkle {
         store.set(&user, &balance);
     }
 
+    fn get_fee() -> i128 {
+        COST_TO_PLAY / 100 // 1%
+    }
+
     fn get_payout() -> i128 {
-        COST_TO_PLAY * 2 * 2 / 100 // what both players put in, -2% fee each
+        COST_TO_PLAY * 2 - Self::get_fee()
     }
 
     fn score_turn(env: &Env, dice: &Vec<u32>, enforce: bool) -> u32 {

@@ -45,14 +45,14 @@ HORIZON_URL = "https://horizon-testnet.stellar.org"
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 NETWORK_PASSPHRASE = sdk.Network.TESTNET_NETWORK_PASSPHRASE
 SOURCE_SEED = sdk.Keypair.from_secret(os.getenv("SOURCE_SECRET", ""))
-CONTRACT_ID = "CAFWLMYR5JHUOL2EICORMQ475FJGHOMJLI47JITOEK2UGUC7R5PIQJIK"
+CONTRACT_ID = "CDYTZZSG3IL7XWDUNNVHD5MZ4AVIPH2EQVCA6XWFGSUVL3CXFOBHVQWA"
 ONE_XLM = 10_000_000
 COST_TO_PLAY = 4 * ONE_XLM  # ~$1
 BASE_FEE = 100
 
 
 app = Flask(__name__, static_url_path="", static_folder="static/")
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", engineio_logger=True, logger=True)
 
 # In-memory queue for connected players, unique for public keys but the dict
 # value (request ID) might change on reconnects.

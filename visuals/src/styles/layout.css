@@ -1,0 +1,16 @@
+/* ---------- Main 3-column grid ---------- */
+.container {
+  display: grid;
+  grid-template-columns: 30% 1fr 1fr;
+  height: 100vh;
+}
+
+/* central board */
+.game-area {
+  position: relative;
+  background: url(/woodgrain2.jpg) repeat;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 768px;
+}

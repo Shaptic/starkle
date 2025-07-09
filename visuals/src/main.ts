@@ -1,5 +1,14 @@
-import "./styles/style.css";
+import "./styles/variables.css";
+import "./styles/reset.css";
+import "./styles/layout.css";
+import "./styles/sidebar.css";
+import "./styles/game.css";
+import "./styles/chat.css";
+import "./styles/buttons.css";
 import "./styles/dice.css";
+import "./styles/modal.css";
+import "./styles/utilities.css";
+import "./styles/responsive.css";
 
 import $ from "jquery";
 import { Buffer as BufferPolyfill } from "buffer/";
@@ -12,7 +21,12 @@ import Freighter from "@stellar/freighter-api";
 import DiceBox from "@3d-dice/dice-box-threejs";
 
 import { makeClient } from "./contracts/helpers";
-import { SERVER_URL, ONE_XLM, PASSPHRASE } from "./contracts/constants";
+import {
+  SERVER_URL,
+  ONE_XLM,
+  PASSPHRASE,
+  FORFEIT_DURATION,
+} from "./contracts/constants";
 
 // Listen for the "roll" event from the server.
 import { BustEvent, HoldEvent, RollEvent, WinEvent } from "./contracts/events";
@@ -32,6 +46,43 @@ import {
 (globalThis as any).Buffer = (window as any).Buffer = BufferPolyfill;
 
 import { IWallet, makeKeypairWallet } from "./iwallet";
+
+class ForfeitTimer {
+  handle?: NodeJS.Timeout;
+  forfeitLedger: number = 0;
+  ledElem: JQuery;
+  secElem: JQuery;
+
+  constructor() {
+    this.secElem = $("#forfeitSec");
+    this.ledElem = $("#forfeitLed");
+  }
+
+  async start() {
+    $(".forfeit").show();
+
+    const s = new Server(SERVER_URL);
+
+    const ll = await s.getLatestLedger();
+    this.forfeitLedger = ll.sequence + FORFEIT_DURATION;
+
+    this.handle = setInterval(async () => {
+      const nowLL = await s.getLatestLedger();
+      const ledgersLeft = 180 - (nowLL.sequence - ll.sequence);
+      console.log(nowLL, ledgersLeft);
+      this.ledElem.text(ledgersLeft.toString());
+
+      if (nowLL.sequence >= this.forfeitLedger) {
+        this.secElem.text("0");
+      }
+    }, 2500);
+  }
+
+  reset() {
+    clearInterval(this.handle);
+    $(".forfeit").hide();
+  }
+}
 
 export async function run() {
   let user: IWallet;
@@ -133,6 +184,7 @@ export async function run() {
     gravity_multiplier: 600,
     baseScale: 100,
   });
+  const fTimer = new ForfeitTimer();
 
   async function main() {
     $("#username").text(uname!);
@@ -156,6 +208,10 @@ export async function run() {
     // When the play button is clicked, show the modal popup
     $("#play").on("click", onPlayBtn);
     $("#logout").on("click", () => logout());
+    $("#rules").on("click", () => $("#rulesModal").css("display", "flex"));
+    $(".got-it").on("click", () => $("#rulesModal").hide());
+
+    $("#refundBtn").on("click", () => {});
 
     // In-game action buttons
     $("#holdReroll").on("click", () => onDiceTurnBtn(false));
@@ -258,7 +314,12 @@ export async function run() {
     $("#waitingModal").hide();
     $("#play").hide();
     $(".scoreboard").show();
-    $(".chat-panel").show();
+    // $(".chat-panel").show();
+    $("#forfeit").show();
+
+    if (window.matchMedia("(max-width: 768px)")) {
+      $(".mobile-game-area").attr("display", "flex");
+    }
 
     const [playerA, playerB] = (event.match_id as string).split("|");
     const them = event.users.filter((x) => x !== uname)[0];
@@ -270,6 +331,7 @@ export async function run() {
     $("#name").text(uname).attr("title", pk);
     $("#opponent-name").text(them).attr("title", opponent);
 
+    startMobileRoll();
     if (event.first_player !== pk) {
       return;
     }
@@ -282,6 +344,7 @@ export async function run() {
       );
       await diceBox.roll(renderRoll(rollResult));
     } catch (err: any) {
+      stopMobileRoll([]);
       modalFailure(err.toString(), () => {
         handleMatchStart(event);
       });
@@ -364,42 +427,17 @@ export async function run() {
     );
   }
 
-  // Invoke rolling with error-handling.
-  function safeRoll(
-    w: IWallet,
-    opponent: string,
-    message?: string,
-    save?: number[],
-    stop?: boolean,
-  ): Promise<number[]> {
-    modalSpin(message ?? "Building roll transaction...");
-    console.debug(
-      `Rolling against ${opponent}, saving ${save} and stop: ${stop}`,
-    );
-
-    return roll(w, opponent, save, stop).then(
-      (result) => {
-        $("#waitingModal").hide();
-        return result;
-      },
-      (err: any) => {
-        modalFailure(`Authorization failed! Reason: ${err.message}`);
-        return Promise.reject(err);
-      },
-    );
-  }
-
   async function onDiceTurnBtn(stop: boolean) {
     $("#dicePanel").hide();
 
     // The actual values
-    const dice: number[] = $(".die.active")
+    const dice: number[] = $("#dicePanel .die.active")
       .map(function () {
         return parseInt($(this).data("value"));
       })
       .toArray();
     // and their respective indices
-    const sel: number[] = $(".die.active")
+    const sel: number[] = $("#dicePanel .die.active")
       .map(function () {
         return parseInt($(this).data("index"));
       })
@@ -425,8 +463,8 @@ export async function run() {
 
     let msg: string = `Building roll transaction to save ${dice2words(dice)} for ${score} points `;
 
+    let rollCount = $("#dicePanel .die").length - sel.length;
     if (!stop) {
-      let rollCount = $(".die").length - sel.length;
       if (rollCount <= 0) {
         rollCount = 6;
       }
@@ -438,6 +476,7 @@ export async function run() {
     }
 
     try {
+      startMobileRoll(!stop ? rollCount : 6);
       const rollResult = await safeRoll(user, opponent, msg, sel, stop);
       if (rollResult.length > 0) {
         diceBox.roll(renderRoll(rollResult));
@@ -445,7 +484,7 @@ export async function run() {
     } catch (err: any) {
       console.error(`Caught error, letting player re-choose: ${err}`);
       renderDiceChoice(
-        $(".die")
+        $("#dicePanel .die")
           .map(function () {
             return parseInt($(this).text());
           })
@@ -461,23 +500,32 @@ export async function run() {
     if (data.dice.length === 0) {
       const pronoun = data.player === userPk.publicKey() ? "their" : "your";
       showPopup(`It's ${pronoun} turn!`);
+      startMobileRoll(6);
 
       // If it's now our turn, kick off the roll state machine.
       if (pronoun === "your") {
+        fTimer.reset();
+
         try {
           const rollResult = await safeRoll(user, opponent);
+          stopMobileRoll(rollResult);
           await diceBox.roll(renderRoll(rollResult));
         } catch (err: any) {
+          stopMobileRoll(data.dice);
           renderDiceChoice(data.dice);
         }
-      } // otherwise do nothing
+      }
       return;
     }
 
+    startMobileRoll(data.dice.length);
     if (data.player === userPk.publicKey()) {
-      await sleep(3000);
       renderDiceChoice(data.dice);
+      stopMobileRoll(data.dice);
     } else {
+      fTimer.start(); // start forfeit timer for the opponent
+      stopMobileRoll(data.dice);
+
       // Renders faster when it's our roll, so only fake it when it's theirs.
       await diceBox.roll(renderRoll(data.dice));
     }
@@ -521,6 +569,7 @@ export async function run() {
 
   async function onBust(event: Event) {
     const data = (event as CustomEvent).detail as BustEvent;
+    stopMobileRoll(data.dice);
 
     const weBust = data.player === userPk.publicKey();
     if (!weBust) {
@@ -546,6 +595,7 @@ export async function run() {
   async function onWin(event: Event) {
     const data = (event as CustomEvent).detail as WinEvent;
     diceBox.clearDice();
+    stopMobileRoll([]);
 
     const onClose = () => {
       getBalances();
@@ -565,6 +615,33 @@ export async function run() {
         onClose,
       );
     }
+
+    fTimer.reset();
+  }
+
+  // Invoke rolling with error-handling.
+  function safeRoll(
+    w: IWallet,
+    opponent: string,
+    message?: string,
+    save?: number[],
+    stop?: boolean,
+  ): Promise<number[]> {
+    modalSpin(message ?? "Building roll transaction...");
+    console.debug(
+      `Rolling against ${opponent}, saving ${save} and stop: ${stop}`,
+    );
+
+    return roll(w, opponent, save, stop).then(
+      (result) => {
+        $("#waitingModal").hide();
+        return result;
+      },
+      (err: any) => {
+        modalFailure(`Authorization failed! Reason: ${err.message}`);
+        return Promise.reject(err);
+      },
+    );
   }
 
   function renderRoll(roll: number[]): string {
@@ -627,6 +704,78 @@ export async function run() {
 
     e.parent().append(span);
     setTimeout(() => span.remove(), 2500);
+  }
+
+  const faces = [1, 2, 3, 4, 5, 6];
+  let rollInterval: number | null = null;
+
+  /**
+   * Call to start the fake roll animation (6 dice by default).
+   */
+  function startMobileRoll(diceCount = 6): void {
+    if (rollInterval !== null) {
+      clearInterval(rollInterval);
+      rollInterval = null;
+    }
+
+    console.log(`Shuffling ${diceCount} dice`);
+    const $box = $("#mobileRoller .dice-container").empty();
+
+    // create dice DOM
+    for (let i = 0; i < diceCount; i++) {
+      $box.append(renderDie(1)); // start all as "1"
+    }
+
+    $("#mobileRoller").show();
+    rollInterval = window.setInterval(() => {
+      $("#mobileRoller .die").each((_idx, el) => {
+        const face = faces[Math.floor(Math.random() * 6)];
+        setDieFace($(el), face);
+      });
+    }, 90); // ≈11 fps “spin”
+  }
+
+  /**
+   * Stop animation and show the real outcome.
+   * Pass an array of final faces (length ≤ diceCount used in start).
+   */
+  function stopMobileRoll(finalFaces: number[]): void {
+    console.log(`Stopping shuffle with ${finalFaces}`);
+
+    if (rollInterval !== null) {
+      clearInterval(rollInterval);
+      rollInterval = null;
+    }
+
+    $("#mobileRoller .die").each((idx, el) => {
+      if (idx > finalFaces.length - 1) {
+        $(el).remove();
+      } else {
+        setDieFace($(el), finalFaces[idx] ?? 1);
+      }
+    });
+
+    if (finalFaces.length === 0) {
+      $("#mobileRoller .dice-container").html("");
+    }
+  }
+
+  /* ---------- helpers ---------- */
+  function renderDie(face: number): JQuery {
+    const $die = $("<div>").addClass("die");
+    setDieFace($die, face);
+    return $die;
+  }
+
+  function setDieFace($die: JQuery, face: number): void {
+    // remove old pN class & pips
+    for (let f = 1; f <= 6; f++) $die.removeClass(`p${f}`);
+    $die.empty().addClass(`p${face}`);
+
+    // create correct number of pips (positions handled by existing CSS)
+    for (let i = 0; i < face; i++) {
+      $die.append($("<span>").addClass("pip"));
+    }
   }
 
   main();
