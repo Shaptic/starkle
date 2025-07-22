@@ -1,5 +1,4 @@
 import { defineConfig } from 'vite'
-import { resolve } from 'path'
 
 import topLevelAwait from "vite-plugin-top-level-await";
 
@@ -12,5 +11,14 @@ export default defineConfig({
       // The function to generate import names of top-level await promise in each chunk module
       promiseImportName: i => `__tla_${i}`
     })
-  ]
-})
+  ],
+  // build: {
+  //   rollupOptions: {
+  //     input: {
+  //       main: './src/main.js',
+  //       login: './src/login.js',
+  //     },
+  //     external: ['@stellar/stellar-sdk', '@stellar/freighter-api', 'jquery'],
+  //   },
+  // },
+});
