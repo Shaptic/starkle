@@ -1,7 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, log};
+use soroban_sdk::{contract, contracterror, contractevent, contractimpl, contracttype, log, Val};
 use soroban_sdk::{panic_with_error, token};
-use soroban_sdk::{vec, Address, BytesN, Env, IntoVal, Map, Vec};
+use soroban_sdk::{vec, Address, BytesN, Env, Map, Vec};
 
 #[contract]
 pub struct Farkle;
@@ -41,6 +41,56 @@ pub enum Error {
     NotYourTurn = 4,
     WrongMatch = 5,
     BadDieHold = 6,
+}
+
+#[contractevent(topics = ["match"], data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MatchEvent {
+    #[topic]
+    a: Address,
+
+    #[topic]
+    b: Address,
+
+    first: Address
+}
+
+#[contractevent(topics = ["roll"], data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RollEvent {
+    #[topic]
+    player: Address,
+
+    roll: Vec<u32>
+}
+
+#[contractevent(topics = ["bust"], data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BustEvent {
+    #[topic]
+    player: Address,
+
+    roll: Vec<u32>
+}
+
+#[contractevent(topics = ["reroll"], data_format = "vec")]
+#[derive(Clone, Debug)]
+pub struct RerollEvent {
+    #[topic]
+    player: Address,
+
+    dice: Val,
+    score: u32,
+    stop: bool
+}
+
+#[contractevent(topics = ["win"], data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WinEvent {
+    #[topic]
+    winner: Address,
+
+    score: u32
 }
 
 const ONE_XLM: i128 = 10_000_000;
@@ -722,38 +772,43 @@ impl Farkle {
     fn emit_match(env: &Env, a: &Address, b: &Address, a_first: bool) -> Address {
         let first_player = if a_first { a.clone() } else { b.clone() };
 
-        env.events().publish(
-            vec![&env, "match".into_val(env), a.to_val(), b.to_val()],
-            first_player.clone(),
-        );
+        MatchEvent {
+            a: a.clone(),
+            b: b.clone(),
+            first: first_player.clone()
+        }.publish(&env);
 
         first_player
     }
 
     fn emit_roll(env: &Env, player: Address, roll: &Vec<u32>) {
-        env.events().publish(
-            vec![&env, "roll".into_val(env), player.to_val()],
-            roll.clone(),
-        );
+        RollEvent {
+            player: player,
+            roll: roll.clone(),
+        }.publish(&env);
     }
 
     fn emit_bust(env: &Env, player: Address, roll: &Vec<u32>) {
-        env.events().publish(
-            vec![&env, "bust".into_val(env), player.to_val()],
-            roll.clone(),
-        );
+        BustEvent {
+            player: player,
+            roll: roll.clone()
+        }.publish(&env);
     }
 
     fn emit_reroll(env: &Env, player: &Address, dice: &Vec<u32>, score: u32, stop: bool) {
-        env.events().publish(
-            vec![&env, "reroll".into_val(env), player.to_val()],
-            vec![&env, dice.to_val(), score.into(), stop.into_val(env)],
-        );
+        RerollEvent {
+            player: player.clone(),
+            dice: dice.to_val(),
+            score: score.into(),
+            stop: stop
+        }.publish(&env);
     }
 
     fn emit_win(env: &Env, winner: &Address, score: u32) {
-        env.events()
-            .publish(vec![&env, "win".into_val(env), winner.to_val()], score);
+        WinEvent {
+            winner: winner.clone(),
+            score: score,
+        }.publish(&env);
     }
 }
 
