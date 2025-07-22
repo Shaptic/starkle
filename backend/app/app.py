@@ -52,7 +52,7 @@ BASE_FEE = 1000
 
 
 app = Flask(__name__, static_url_path="", static_folder="static/")
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", engineio_logger=True, logger=True)
 
 # In-memory queue for connected players, unique for public keys but the dict
 # value (request ID) might change on reconnects.
@@ -68,6 +68,7 @@ active_matches: Dict[str, Match] = {}
 def index():
     """Basic index endpoint."""
     return app.send_static_file("index.html")
+
 
 @socketio.on("connect")
 def on_connect():
@@ -215,7 +216,7 @@ def _check_queue():
                     room=[room1, room2],
                 )
             else:
-                print(resp.results[0].auth)
+                L.info(resp.results[0].auth)
 
         except sdk.exceptions.SorobanRpcErrorResponse as e:
             L.warning(f"Simulation failed: {e}", exc_info=True)
@@ -224,12 +225,15 @@ def _check_queue():
         # Find the auth entry corresponding to each player and emit the entry to
         # them in its entirety.
         players = {player1.address: room1, player2.address: room2}
-        for raw_entry in filter(
-            lambda entry: (
-                entry.credentials.type != sdk.xdr.SorobanCredentialsType.SOROBAN_CREDENTIALS_ADDRESS
-            ),
-            map(sdk.xdr.SorobanAuthorizationEntry.from_xdr, resp.results[0].auth)
-        ):
+        for raw_entry in resp.results[0].auth:
+            entry = sdk.xdr.SorobanAuthorizationEntry.from_xdr(raw_entry)
+            if (
+                entry.credentials.type
+                != sdk.xdr.SorobanCredentialsType.SOROBAN_CREDENTIALS_ADDRESS
+            ):
+                L.warning(f"Credential is a source type: {entry}")
+                continue
+
             addr = sdk.Address.from_xdr_sc_address(
                 entry.credentials.address.address
             ).address
@@ -259,15 +263,18 @@ def create_match(match):
         ptxn = rpc.prepare_transaction(txn, resp)
         ptxn.sign(SOURCE_SEED)
 
-        resp = rpc.poll_transaction(ptxn)
-
-        resp = rpc.send_transaction(ptxn.hash, max_attempts=5)
-        L.debug(f"Match transaction submission status: {resp.status}")
-        if not getresp or getresp.status != sdk.soroban_rpc.GetTransactionStatus.SUCCESS:
-            L.error(f"Failure :( -- {getresp.result_meta_xdr}")
+        resp = rpc.send_transaction(ptxn)
+        if resp.status != sdk.soroban_rpc.SendTransactionStatus.PENDING:
+            L.error(f"Transaction failed to send: {resp}")
             return False, None
 
-        meta = sdk.xdr.TransactionMeta.from_xdr(getresp.result_meta_xdr)
+        resp = rpc.poll_transaction(resp.hash, max_attempts=5)
+        L.debug(f"Match transaction submission status: {resp.status}")
+        if resp.status != sdk.soroban_rpc.GetTransactionStatus.SUCCESS:
+            L.error(f"Failure :( -- {resp}, {resp.result_meta_xdr}")
+            return False, None
+
+        meta = sdk.xdr.TransactionMeta.from_xdr(resp.result_meta_xdr)
         scv = sdk.scval.to_native(meta.v4.soroban_meta.return_value)
         return True, scv.address
 

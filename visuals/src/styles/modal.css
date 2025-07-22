@@ -48,7 +48,6 @@
 
 /* dice panel */
 .dice-panel {
-  display: none;
   position: absolute;
   left: 50%;
   bottom: 20px;

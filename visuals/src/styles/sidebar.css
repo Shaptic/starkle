@@ -67,8 +67,8 @@
   font-size: 2em;
   color: var(--brand-blue);
 }
-.playerA.turn,
-.playerB.turn {
+.scoreboard-row .turn,
+.scoreboard-row .roll {
   font-size: 1em;
   color: var(--grey-500);
 }

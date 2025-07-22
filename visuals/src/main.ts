@@ -217,6 +217,14 @@ export async function run() {
     $("#holdReroll").on("click", () => onDiceTurnBtn(false));
     $("#holdPass").on("click", () => onDiceTurnBtn(true));
 
+    $("#dicePanel .die").on("click", (e) => {
+      if ($(e).hasClass("active")) {
+        const [ vals, _ ] = getSelectedDice();
+        const score = scoreDice(vals);
+        $("#turn-score").text(score.toString());
+      }
+    });
+
     socket.onAny((e, ...args) => console.debug(e, ...args));
 
     socket.on("auth_request", handleAuth);
@@ -377,14 +385,14 @@ export async function run() {
   }
 
   async function onDepositBtn() {
-    modalSpin("Depositing 20 XLM...");
-    console.debug("Depositing 20 XLM into the contract...");
+    modalSpin("Depositing 100 XLM...");
+    console.debug("Depositing 100 XLM into the contract...");
 
     return yeeter(
       await contract
         .deposit({
           to: userPk.publicKey(),
-          amount: 20n * ONE_XLM,
+          amount: 100n * ONE_XLM,
         })
         .then((txn) => {
           $("#wait-status").text(
@@ -429,9 +437,7 @@ export async function run() {
     );
   }
 
-  async function onDiceTurnBtn(stop: boolean) {
-    $("#dicePanel").hide();
-
+  function getSelectedDice(): [number[], number[]] {
     // The actual values
     const dice: number[] = $("#dicePanel .die.active")
       .map(function () {
@@ -445,6 +451,13 @@ export async function run() {
       })
       .toArray();
 
+    return [dice, sel];
+  }
+
+  async function onDiceTurnBtn(stop: boolean) {
+    $("#dicePanel").hide();
+
+    const [dice, sel] = getSelectedDice();
     const score = scoreDice(dice);
     console.log(`Roll ${dice} scored ${score}.`);
     if (score === 0) {
