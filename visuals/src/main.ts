@@ -217,14 +217,6 @@ export async function run() {
     $("#holdReroll").on("click", () => onDiceTurnBtn(false));
     $("#holdPass").on("click", () => onDiceTurnBtn(true));
 
-    $("#dicePanel .die").on("click", (e) => {
-      if ($(e).hasClass("active")) {
-        const [ vals, _ ] = getSelectedDice();
-        const score = scoreDice(vals);
-        $("#turn-score").text(score.toString());
-      }
-    });
-
     socket.onAny((e, ...args) => console.debug(e, ...args));
 
     socket.on("auth_request", handleAuth);
@@ -567,6 +559,7 @@ export async function run() {
     let e = $(`#${prefix}turn-score`);
     const turnScore = parseInt(e.text());
     e.text(turnScore + data.score);
+    $("#roll-score").text("0");
 
     if (data.stop) {
       const score = $(`#${prefix}total-score`);
@@ -677,7 +670,13 @@ export async function run() {
         .addClass(["die", `p${value}`])
         .data("value", value)
         .data("index", index)
-        .on("click", () => dieEl.toggleClass("active"))
+        .on("click", () => {
+          if (dieEl.toggleClass("active")) {
+            const [ vals, _ ] = getSelectedDice();
+            const score = scoreDice(vals);
+            $("#roll-score").text(score.toString());
+          }
+        })
         // Add pips to match the die
         .append(new Array(value).fill(0).map(() => $("<div>").addClass("pip")));
       diceContainer.append(dieEl);
