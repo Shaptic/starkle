@@ -314,6 +314,8 @@ export async function run() {
     $("#waitingModal").hide();
     $("#play").hide();
     $(".scoreboard").show();
+    $(".total").text("0");
+
     // $(".chat-panel").show();
     $("#forfeit").show();
 
@@ -520,6 +522,7 @@ export async function run() {
 
     startMobileRoll(data.dice.length);
     if (data.player === userPk.publicKey()) {
+      await sleep(3000);
       renderDiceChoice(data.dice);
       stopMobileRoll(data.dice);
     } else {
