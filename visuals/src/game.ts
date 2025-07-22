@@ -61,7 +61,7 @@ export async function roll(
     if (Api.isSimulationSuccess(txn.simulation!)) {
       const built = txn.simulation.transactionData.build();
       const instructions = built.resources().instructions();
-      const readBytes = built.resources().readBytes();
+      const readBytes = built.resources().diskReadBytes();
       const writeBytes = built.resources().writeBytes();
 
       const fee = built.resourceFee();

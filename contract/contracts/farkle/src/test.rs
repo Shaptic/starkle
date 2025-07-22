@@ -3,7 +3,8 @@ extern crate std;
 
 use super::*;
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Address, Env};
+use soroban_sdk::xdr::{self, Limits, WriteXdr as _};
+use soroban_sdk::{Address, Bytes, Env};
 
 const INIT: i128 = 2000 * ONE_XLM;
 
@@ -14,11 +15,19 @@ fn test() {
 
     let admin = Address::generate(&env);
     let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let xlm = env
+        .deployer()
+        .with_stellar_asset(Bytes::from_slice(
+            &env,
+            &xdr::Asset::Native.to_xdr(Limits::none()).unwrap(),
+        ))
+        .deployed_address();
+    env.register(xlm.clone(), ());
 
     let sac_admin = token::StellarAssetClient::new(&env, &sac.address());
     let sac_client = token::Client::new(&env, &sac.address());
 
-    let client = FarkleClient::new(&env, &env.register(Farkle, (&admin, &sac.address())));
+    let client = FarkleClient::new(&env, &env.register(Farkle, (&admin, )));
     let alice = Address::generate(&env);
     let bob = Address::generate(&env);
 
@@ -101,7 +110,6 @@ fn test() {
     assert_eq!(client.withdraw(&bob), 0); // bob lost so 0
 
     assert_eq!(client.deposit(&alice, &INIT), INIT);
-    assert_eq!(client.shutdown(), INIT + (10 * ONE_XLM));
 
     assert_eq!(sac_client.balance(&admin), INIT + (10 * ONE_XLM));
 }

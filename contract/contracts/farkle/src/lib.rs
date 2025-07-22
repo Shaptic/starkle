@@ -1,7 +1,6 @@
 #![no_std]
-use soroban_sdk::xdr::{Limits, WriteXdr};
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, log, Bytes};
-use soroban_sdk::{panic_with_error, token, xdr};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, log};
+use soroban_sdk::{panic_with_error, token};
 use soroban_sdk::{vec, Address, BytesN, Env, IntoVal, Map, Vec};
 
 #[contract]
@@ -45,7 +44,7 @@ pub enum Error {
 }
 
 const ONE_XLM: i128 = 10_000_000;
-const COST_TO_PLAY: i128 = 3 * ONE_XLM; // ~$1
+const COST_TO_PLAY: i128 = 10 * ONE_XLM;
 const FORFEIT_DURATION: u32 = 180; // ledger count @ ~5s/ea = 15m
 const WIN_THRESHOLD: u32 = 3000;
 
@@ -59,13 +58,11 @@ impl Farkle {
      * - `admin` - The owner of this instance of the game.
      */
     pub fn __constructor(env: Env, admin: Address) {
-        let xlm = env
-            .deployer()
-            .with_stellar_asset(Bytes::from_slice(
-                &env,
-                &xdr::Asset::Native.to_xdr(Limits::none()).unwrap(),
-            ))
-            .deployed_address();
+        // Wagers are done purely in XLM; sadly this has to be hardcoded.
+        let xlm = Address::from_str(
+            &env,
+            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        );
 
         env.storage().instance().set(&AdminData::Token, &xlm); // so we don't re-derive
         env.storage().instance().set(&AdminData::Admin, &admin);
