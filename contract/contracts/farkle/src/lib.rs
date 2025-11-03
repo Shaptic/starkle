@@ -1,5 +1,6 @@
 #![no_std]
-use soroban_sdk::{contract, contracterror, contractevent, contractimpl, contracttype, log, Val};
+use soroban_sdk::token::{StellarAssetClient};
+use soroban_sdk::{contract, contracterror, contractevent, contractimpl, contracttype, log};
 use soroban_sdk::{panic_with_error, token};
 use soroban_sdk::{vec, Address, BytesN, Env, Map, Vec};
 
@@ -28,6 +29,7 @@ pub enum UserData {
 pub enum AdminData {
     Token,
     Admin,
+    Reward,
 }
 
 #[contracterror]
@@ -52,7 +54,7 @@ pub struct MatchEvent {
     #[topic]
     b: Address,
 
-    first: Address
+    first: Address,
 }
 
 #[contractevent(topics = ["roll"], data_format = "single-value")]
@@ -61,7 +63,7 @@ pub struct RollEvent {
     #[topic]
     player: Address,
 
-    roll: Vec<u32>
+    roll: Vec<u32>,
 }
 
 #[contractevent(topics = ["bust"], data_format = "single-value")]
@@ -70,7 +72,7 @@ pub struct BustEvent {
     #[topic]
     player: Address,
 
-    roll: Vec<u32>
+    roll: Vec<u32>,
 }
 
 #[contractevent(topics = ["reroll"], data_format = "vec")]
@@ -79,9 +81,9 @@ pub struct RerollEvent {
     #[topic]
     player: Address,
 
-    dice: Val,
+    dice: Vec<u32>,
     score: u32,
-    stop: bool
+    stop: bool,
 }
 
 #[contractevent(topics = ["win"], data_format = "single-value")]
@@ -90,13 +92,15 @@ pub struct WinEvent {
     #[topic]
     winner: Address,
 
-    score: u32
+    score: u32,
 }
 
 const ONE_XLM: i128 = 10_000_000;
 const COST_TO_PLAY: i128 = 10 * ONE_XLM;
 const FORFEIT_DURATION: u32 = 180; // ledger count @ ~5s/ea = 15m
 const WIN_THRESHOLD: u32 = 3000;
+const REWARD_RESERVE: i128 = 10_000_000;
+const REWARD: i128 = 1000;
 
 #[contractimpl]
 impl Farkle {
@@ -107,7 +111,9 @@ impl Farkle {
      *
      * - `admin` - The owner of this instance of the game.
      */
-    pub fn __constructor(env: Env, admin: Address) {
+    pub fn __constructor(env: Env, admin: Address, reward: Address) {
+        admin.require_auth();
+
         // Wagers are done purely in XLM; sadly this has to be hardcoded.
         let xlm = Address::from_str(
             &env,
@@ -116,6 +122,18 @@ impl Farkle {
 
         env.storage().instance().set(&AdminData::Token, &xlm); // so we don't re-derive
         env.storage().instance().set(&AdminData::Admin, &admin);
+        env.storage().instance().set(&AdminData::Reward, &reward);
+
+        let contract = env.current_contract_address();
+
+        let client = StellarAssetClient::new(&env, &reward);
+        client.set_admin(&admin);
+        let to_mint = REWARD_RESERVE - client.balance(&admin);
+        if to_mint > 0 {
+            client.mint(&admin, &to_mint);
+        }
+
+        client.transfer(&admin, &contract, &REWARD_RESERVE);
     }
 
     /** Returns the current version of the game. */
@@ -457,6 +475,16 @@ impl Farkle {
                     let contract = env.current_contract_address();
                     client.transfer(&contract, &player, &payout);
 
+                    // Both players get rewards for participation (so millenial
+                    // coded..), but the winner gets double the base reward.
+                    let r = REWARD * 2;
+
+                    let reward_addr: Address = env.storage().instance().get(&AdminData::Reward).unwrap();
+                    let reward = StellarAssetClient::new(&env, &reward_addr);
+
+                    reward.transfer(&contract, &player, &r);
+                    reward.transfer(&contract, &opp, &REWARD);
+
                     Self::_end_match(&env, player.clone(), opp);
                     Self::emit_win(&env, &player, score);
                 } else {
@@ -553,6 +581,14 @@ impl Farkle {
         Self::check_init(env);
     }
 
+    // Allows the admin to force a game to end, which helps resolve bugs.
+    pub fn end_match(env: &Env, player: Address, opp: Address) -> bool {
+        let admin: Address = env.storage().instance().get(&AdminData::Admin).unwrap();
+        admin.require_auth();
+
+        Self::_end_match(env, player, opp)
+    }
+
     fn pass_turn(env: &Env, from: Address, to: Address) {
         let store = env.storage().temporary();
 
@@ -571,13 +607,6 @@ impl Farkle {
         // Pass the turn.
         store.set(&UserData::Turn(from), &to);
         store.set(&UserData::Turn(to.clone()), &to);
-    }
-
-    pub fn end_match(env: &Env, player: Address, opp: Address) -> bool {
-        let admin: Address = env.storage().instance().get(&AdminData::Admin).unwrap();
-        admin.require_auth();
-
-        Self::_end_match(env, player, opp)
     }
 
     fn _end_match(env: &Env, player: Address, opp: Address) -> bool {
@@ -775,8 +804,9 @@ impl Farkle {
         MatchEvent {
             a: a.clone(),
             b: b.clone(),
-            first: first_player.clone()
-        }.publish(&env);
+            first: first_player.clone(),
+        }
+        .publish(&env);
 
         first_player
     }
@@ -785,30 +815,34 @@ impl Farkle {
         RollEvent {
             player: player,
             roll: roll.clone(),
-        }.publish(&env);
+        }
+        .publish(&env);
     }
 
     fn emit_bust(env: &Env, player: Address, roll: &Vec<u32>) {
         BustEvent {
             player: player,
-            roll: roll.clone()
-        }.publish(&env);
+            roll: roll.clone(),
+        }
+        .publish(&env);
     }
 
     fn emit_reroll(env: &Env, player: &Address, dice: &Vec<u32>, score: u32, stop: bool) {
         RerollEvent {
             player: player.clone(),
-            dice: dice.to_val(),
+            dice: dice.clone(),
             score: score.into(),
-            stop: stop
-        }.publish(&env);
+            stop: stop,
+        }
+        .publish(&env);
     }
 
     fn emit_win(env: &Env, winner: &Address, score: u32) {
         WinEvent {
             winner: winner.clone(),
             score: score,
-        }.publish(&env);
+        }
+        .publish(&env);
     }
 }
 

@@ -31,7 +31,7 @@ import {
 // Listen for the "roll" event from the server.
 import { BustEvent, HoldEvent, RollEvent, WinEvent } from "./contracts/events";
 import { Eventing } from "./eventing";
-import { getAccountBalance, getGameBalance, sleep } from "./helpers";
+import { getAccountBalance, getGameBalance, getRewardBalance, sleep } from "./helpers";
 import { dice2words, roll, scoreDice, yeeter } from "./game";
 import { socket } from "./socket";
 import {
@@ -316,7 +316,7 @@ export async function run() {
     $(".scoreboard").show();
     $(".total").text("0");
 
-    // $(".chat-panel").show();
+    $(".chat-panel").show();
     $("#forfeit").show();
 
     if (window.matchMedia("(max-width: 768px)")) {
@@ -329,6 +329,19 @@ export async function run() {
 
     opponent = playerA === pk ? playerB : playerA;
     eventer.listen([playerA, playerB]);
+
+    $("#chat-input").on("keypress", function(e) {
+      const t = $(this);
+      if (e.which === 13) {
+        const content = t.val();
+        socket.emit("chat", {
+          "user": uname,
+          "message": content,
+        });
+
+        t.val("");
+      }
+    });
 
     $("#name").text(uname).attr("title", pk);
     $("#opponent-name").text(them).attr("title", opponent);
@@ -699,6 +712,9 @@ export async function run() {
     renderBalanceUpdate(element, oldBalance, newBalance);
 
     ({ element, oldBalance, newBalance } = await getGameBalance(user));
+    renderBalanceUpdate(element, oldBalance, newBalance);
+
+    ({ element, oldBalance, newBalance } = await getRewardBalance(user));
     renderBalanceUpdate(element, oldBalance, newBalance);
   }
 

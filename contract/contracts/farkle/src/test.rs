@@ -27,7 +27,7 @@ fn test() {
     let sac_admin = token::StellarAssetClient::new(&env, &sac.address());
     let sac_client = token::Client::new(&env, &sac.address());
 
-    let client = FarkleClient::new(&env, &env.register(Farkle, (&admin, )));
+    let client = FarkleClient::new(&env, &env.register(Farkle, (&admin,)));
     let alice = Address::generate(&env);
     let bob = Address::generate(&env);
 

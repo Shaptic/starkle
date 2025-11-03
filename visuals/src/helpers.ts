@@ -1,10 +1,10 @@
 import $ from "jquery";
 
-import { Keypair, xdr } from "@stellar/stellar-sdk";
-import { Server } from "@stellar/stellar-sdk/rpc";
+import { Address, BASE_FEE, Contract, Keypair, nativeToScVal, Operation, scValToNative, TransactionBuilder, xdr } from "@stellar/stellar-sdk";
+import { Api, Server } from "@stellar/stellar-sdk/rpc";
 
 import { makeClient } from "./contracts/helpers";
-import { ONE_XLM, SERVER_URL } from "./contracts/constants";
+import { ONE_XLM, PASSPHRASE, REWARD_ID, SERVER_URL } from "./contracts/constants";
 import { IWallet } from "./iwallet";
 
 export async function getAccountBalance(w: IWallet): Promise<{
@@ -66,6 +66,44 @@ export async function getGameBalance(w: IWallet): Promise<{
   }
 
   const elem = $("#in-game-balance");
+  const oldBalance = elem.text();
+  const newBalance = b.toString();
+  elem.text(parseFloat(newBalance).toFixed(2));
+
+  return { element: elem, oldBalance, newBalance };
+}
+
+export async function getRewardBalance(w: IWallet): Promise<{
+  element: JQuery<HTMLElement>;
+  oldBalance: string;
+  newBalance: string;
+}> {
+  const { address } = await w.getAddress();
+
+  const rpc = new Server(SERVER_URL);
+  const acc = await rpc.getAccount(address);
+
+  const txn = new TransactionBuilder(acc, {
+    fee: BASE_FEE,
+    networkPassphrase: PASSPHRASE,
+  }).addOperation(Operation.invokeContractFunction({
+    contract: REWARD_ID,
+    function: "balance",
+    args: [
+      nativeToScVal(address, {type: "address"}),
+    ]
+  })).setTimeout(300).build();
+
+  let b: bigint = 0n;
+  const sim = await rpc.simulateTransaction(txn);
+  if (Api.isSimulationSuccess(sim)) {
+    b = scValToNative(sim.result!.retval);
+    console.info(`User ${address} has ${b.toString()} FRKL.`);
+  } else {
+    throw new Error("fetching FRKL balance failed");
+  }
+
+  const elem = $("#reward-balance");
   const oldBalance = elem.text();
   const newBalance = b.toString();
   elem.text(parseFloat(newBalance).toFixed(2));

@@ -45,7 +45,7 @@ HORIZON_URL = "https://horizon-testnet.stellar.org"
 SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org"
 NETWORK_PASSPHRASE = sdk.Network.TESTNET_NETWORK_PASSPHRASE
 SOURCE_SEED = sdk.Keypair.from_secret(os.getenv("SOURCE_SECRET", ""))
-CONTRACT_ID = "CDYTZZSG3IL7XWDUNNVHD5MZ4AVIPH2EQVCA6XWFGSUVL3CXFOBHVQWA"
+CONTRACT_ID = "CBEAAYMGWRDZ4HDQ4T4YPU5NRV24S2YGKXNV5SYF2UR3XNTUWU4D5Q5D"
 ONE_XLM = 10_000_000
 COST_TO_PLAY = -1
 BASE_FEE = 1000
@@ -268,7 +268,7 @@ def create_match(match):
             L.error(f"Transaction failed to send: {resp}")
             return False, None
 
-        resp = rpc.poll_transaction(resp.hash, max_attempts=5)
+        resp = rpc.poll_transaction(resp.hash, max_attempts=10)
         L.debug(f"Match transaction submission status: {resp.status}")
         if resp.status != sdk.soroban_rpc.GetTransactionStatus.SUCCESS:
             L.error(f"Failure :( -- {resp}, {resp.result_meta_xdr}")
