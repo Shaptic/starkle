@@ -170,8 +170,59 @@ def on_auth_response(data):
                     room=sid,
                 )
             L.error("Match %s smart contract failed.", match_id)
+            del active_matches[match_id]
 
-        del active_matches[match_id]
+
+@socketio.on("chat")
+def on_chat(data):
+    """Relay chat messages between matched players."""
+    if not isinstance(data, dict):
+        L.warning("Invalid chat payload from %s: %s", request.sid, data)
+        return
+
+    match_id = data.get("match_id")
+    message = data.get("message")
+    if not match_id or not isinstance(message, str) or message.strip() == "":
+        L.warning("Invalid chat message from %s: %s", request.sid, data)
+        emit(
+            "chat_error",
+            {"error": "Invalid chat message."},
+        )
+        return
+
+    match = active_matches.get(match_id)
+    if match is None:
+        L.warning("Chat for unknown match %s from %s", match_id, request.sid)
+        emit(
+            "chat_error",
+            {"error": "Match not found."},
+        )
+        return
+
+    sender: Optional[str] = None
+    recipients: List[str] = []
+    for player, sid in match.players:
+        if sid == request.sid:
+            sender = player.username
+        else:
+            recipients.append(sid)
+
+    if sender is None:
+        L.warning("Chat from non-participant %s for match %s", request.sid, match_id)
+        emit(
+            "chat_error",
+            {"error": "Not part of this match."},
+        )
+        return
+
+    payload = {
+        "match_id": match_id,
+        "message": message,
+        "user": sender,
+    }
+
+    for sid in recipients:
+        socketio.emit("chat", payload, room=sid)
 
 
 def _check_queue():

@@ -1,10 +1,25 @@
 import $ from "jquery";
 
-import { Address, BASE_FEE, Contract, Keypair, nativeToScVal, Operation, scValToNative, TransactionBuilder, xdr } from "@stellar/stellar-sdk";
+import {
+  Address,
+  BASE_FEE,
+  Contract,
+  Keypair,
+  nativeToScVal,
+  Operation,
+  scValToNative,
+  TransactionBuilder,
+  xdr,
+} from "@stellar/stellar-sdk";
 import { Api, Server } from "@stellar/stellar-sdk/rpc";
 
 import { makeClient } from "./contracts/helpers";
-import { ONE_XLM, PASSPHRASE, REWARD_ID, SERVER_URL } from "./contracts/constants";
+import {
+  ONE_XLM,
+  PASSPHRASE,
+  REWARD_ID,
+  SERVER_URL,
+} from "./contracts/constants";
 import { IWallet } from "./iwallet";
 
 export async function getAccountBalance(w: IWallet): Promise<{
@@ -86,13 +101,16 @@ export async function getRewardBalance(w: IWallet): Promise<{
   const txn = new TransactionBuilder(acc, {
     fee: BASE_FEE,
     networkPassphrase: PASSPHRASE,
-  }).addOperation(Operation.invokeContractFunction({
-    contract: REWARD_ID,
-    function: "balance",
-    args: [
-      nativeToScVal(address, {type: "address"}),
-    ]
-  })).setTimeout(300).build();
+  })
+    .addOperation(
+      Operation.invokeContractFunction({
+        contract: REWARD_ID,
+        function: "balance",
+        args: [nativeToScVal(address, { type: "address" })],
+      }),
+    )
+    .setTimeout(300)
+    .build();
 
   let b: bigint = 0n;
   const sim = await rpc.simulateTransaction(txn);

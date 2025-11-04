@@ -31,7 +31,12 @@ import {
 // Listen for the "roll" event from the server.
 import { BustEvent, HoldEvent, RollEvent, WinEvent } from "./contracts/events";
 import { Eventing } from "./eventing";
-import { getAccountBalance, getGameBalance, getRewardBalance, sleep } from "./helpers";
+import {
+  getAccountBalance,
+  getGameBalance,
+  getRewardBalance,
+  sleep,
+} from "./helpers";
 import { dice2words, roll, scoreDice, yeeter } from "./game";
 import { socket } from "./socket";
 import {
@@ -185,6 +190,77 @@ export async function run() {
     baseScale: 100,
   });
   const fTimer = new ForfeitTimer();
+  const $chatMessages = $("#chat-messages");
+  const $chatTemplate = $("#chat-message-template");
+  const chatTemplateMarkup = ($chatTemplate.html() ?? "").trim();
+  const $chatPanel = $(".chat-panel");
+  const $chatToggle = $("#chat-toggle");
+  const $chatClose = $("#chat-close");
+  const $body = $("body");
+  let chatOverlayOpen = false;
+  let chatEnabled = false;
+
+  interface ChatEnvelope {
+    user: string;
+    message: string;
+  }
+
+  function appendChatMessage(sender: string, text: string, self = false) {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const $message = $(chatTemplateMarkup);
+    if (!$message.length) {
+      return;
+    }
+
+    if (self) {
+      $message.addClass("chat-message--self");
+    }
+
+    $message.find(".chat-message-user").text(sender);
+    $message.find(".chat-message-body").text(trimmed);
+
+    $chatMessages.append($message);
+    const scrollHeight = $chatMessages.prop("scrollHeight");
+    if (typeof scrollHeight === "number") {
+      $chatMessages.scrollTop(scrollHeight);
+    }
+  }
+
+  function handleIncomingChat({ user: sender, message }: ChatEnvelope) {
+    if (!sender || !message) {
+      return;
+    }
+
+    if (sender === uname) {
+      return;
+    }
+
+    appendChatMessage(sender, message);
+  }
+
+  function setChatOverlay(open: boolean) {
+    chatOverlayOpen = open;
+    $chatPanel.toggleClass("chat-panel--open", open);
+    $chatPanel.attr("aria-hidden", open ? "false" : "true");
+    $chatToggle.attr("aria-expanded", open ? "true" : "false");
+    $body.toggleClass("chat-overlay-open", open);
+  }
+
+  function enableChat() {
+    chatEnabled = true;
+    $chatToggle.removeAttr("hidden");
+    setChatOverlay(false);
+  }
+
+  function disableChat() {
+    chatEnabled = false;
+    $chatToggle.attr("hidden", "true").attr("aria-expanded", "false");
+    setChatOverlay(false);
+  }
 
   async function main() {
     $("#username").text(uname!);
@@ -222,6 +298,31 @@ export async function run() {
     socket.on("auth_request", handleAuth);
     socket.on("match_start", handleMatchStart);
     socket.on("match_error", handleMatchError);
+    socket.on("chat", handleIncomingChat);
+
+    disableChat();
+
+    $chatToggle.on("click", () => {
+      if (!chatEnabled) {
+        return;
+      }
+      setChatOverlay(!chatOverlayOpen);
+    });
+
+    $chatClose.on("click", () => setChatOverlay(false));
+
+    $(document).on("click.chat-overlay", (event) => {
+      if (!chatOverlayOpen) {
+        return;
+      }
+
+      const $target = $(event.target);
+      if ($target.closest(".chat-panel, #chat-toggle").length) {
+        return;
+      }
+
+      setChatOverlay(false);
+    });
 
     eventer.on("roll", onRoll);
     eventer.on("reroll", onReRoll);
@@ -296,6 +397,7 @@ export async function run() {
   }
 
   async function handleMatchError(event: any) {
+    disableChat();
     modalFailure(event.error ?? JSON.stringify(event), () => {
       $("#play").show();
       socket.disconnect();
@@ -308,6 +410,7 @@ export async function run() {
     first_player: string;
     users: string[];
   }) {
+    const match_id: string = event.match_id;
     getBalances();
 
     $("#wait-status").text("Joined!");
@@ -316,27 +419,38 @@ export async function run() {
     $(".scoreboard").show();
     $(".total").text("0");
 
-    $(".chat-panel").show();
+    enableChat();
     $("#forfeit").show();
 
-    if (window.matchMedia("(max-width: 768px)")) {
+    $chatMessages.empty();
+
+    if (window.matchMedia("(max-width: 768px)").matches) {
       $(".mobile-game-area").attr("display", "flex");
     }
 
-    const [playerA, playerB] = (event.match_id as string).split("|");
+    const [playerA, playerB] = match_id.split("|");
     const them = event.users.filter((x) => x !== uname)[0];
     const pk = userPk.publicKey();
 
     opponent = playerA === pk ? playerB : playerA;
     eventer.listen([playerA, playerB]);
 
-    $("#chat-input").on("keypress", function(e) {
+    const chatInput = $("#chat-input");
+    chatInput.off("keypress").on("keypress", function (e) {
       const t = $(this);
       if (e.which === 13) {
-        const content = t.val();
+        e.preventDefault();
+        const content = (t.val() as string | undefined)?.trim() ?? "";
+        if (!content) {
+          t.val("");
+          return;
+        }
+
+        appendChatMessage(uname, content, true);
         socket.emit("chat", {
-          "user": uname,
-          "message": content,
+          user: uname,
+          message: content,
+          match_id,
         });
 
         t.val("");
@@ -367,6 +481,7 @@ export async function run() {
   }
 
   async function onPlayBtn() {
+    disableChat();
     if (socket.disconnected) {
       modalFailure("Not connected to server :( Try refreshing?");
     } else {
@@ -622,7 +737,8 @@ export async function run() {
     const onClose = () => {
       getBalances();
       $(".scoreboard").fadeOut();
-      $(".chat-panel").fadeOut();
+      setChatOverlay(false);
+      disableChat();
       $("#play").show();
     };
 
@@ -685,7 +801,7 @@ export async function run() {
         .data("index", index)
         .on("click", () => {
           if (dieEl.toggleClass("active")) {
-            const [ vals, _ ] = getSelectedDice();
+            const [vals, _] = getSelectedDice();
             const score = scoreDice(vals);
             $("#roll-score").text(score.toString());
           }

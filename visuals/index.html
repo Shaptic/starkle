@@ -149,11 +149,29 @@
       </main>
 
       <!-- Chat Panel (Right) -->
-      <aside class="chat-panel" style="display: none">
-        <h2>Chat</h2>
+      <aside class="chat-panel" aria-hidden="true">
+        <div class="chat-panel-header">
+          <h2>Chat</h2>
+          <button
+            type="button"
+            class="chat-close"
+            id="chat-close"
+            aria-label="Close chat"
+          >
+            &times;
+          </button>
+        </div>
         <div class="chat-messages" id="chat-messages">
           <!-- Chat messages will appear here -->
         </div>
+        <template id="chat-message-template">
+          <article class="chat-message">
+            <header class="chat-message-header">
+              <span class="chat-message-user"></span>
+            </header>
+            <p class="chat-message-body"></p>
+          </article>
+        </template>
         <input
           type="text"
           class="chat-input"
@@ -162,6 +180,17 @@
         />
       </aside>
     </div>
+
+    <button
+      type="button"
+      class="chat-toggle"
+      id="chat-toggle"
+      aria-haspopup="true"
+      aria-expanded="false"
+      hidden
+    >
+      Chat
+    </button>
 
     <!-- Waiting for Opponent Modal (Full-screen overlay) -->
     <div id="waitingModal" class="waiting-modal">

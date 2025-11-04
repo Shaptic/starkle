@@ -1,7 +1,7 @@
-/* ---------- Main 3-column grid ---------- */
+/* ---------- Main 2-column grid ---------- */
 .container {
   display: grid;
-  grid-template-columns: 30% 1fr 1fr;
+  grid-template-columns: 30% 1fr;
   height: 100vh;
 }
 
