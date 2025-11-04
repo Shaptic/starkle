@@ -42,7 +42,7 @@ requests-sse==0.5.0
 simple-websocket==1.1.0
 six==1.17.0
 sortedcontainers==2.4.0
-stellar-sdk==12.2.0
+stellar-sdk==13.1.0
 toml==0.10.2
 tomli==2.2.1
 typing_extensions==4.13.2
