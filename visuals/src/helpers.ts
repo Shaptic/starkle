@@ -1,9 +1,7 @@
 import $ from "jquery";
 
 import {
-  Address,
   BASE_FEE,
-  Contract,
   Keypair,
   nativeToScVal,
   Operation,
